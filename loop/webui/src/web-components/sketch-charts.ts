@@ -1,26 +1,83 @@
-import type { TimelineMessage } from "./types";
-import vegaEmbed from "vega-embed";
+import "./vega-embed";
+import { css, html, LitElement, PropertyValues } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
 import { TopLevelSpec } from "vega-lite";
+import type { TimelineMessage } from "../types";
+import "vega-embed";
+import { VisualizationSpec } from "vega-embed";
 
 /**
- * ChartManager handles all chart-related functionality for the timeline.
- * This includes rendering charts, calculating data, and managing chart state.
+ * Web component for rendering charts related to the timeline data
+ * Displays cumulative cost over time and message timing visualization
  */
-export class ChartManager {
+@customElement("sketch-charts")
+export class SketchCharts extends LitElement {
+  @property({ type: Array })
+  messages: TimelineMessage[] = [];
+
+  @state()
   private chartData: { timestamp: Date; cost: number }[] = [];
 
-  /**
-   * Create a new ChartManager instance
-   */
+  // We need to make the styles available to Vega-Embed when it's rendered
+  static styles = css`
+    :host {
+      display: block;
+      width: 100%;
+    }
+
+    .chart-container {
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+
+    .chart-section {
+      margin-bottom: 30px;
+    }
+
+    .chart-section h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 18px;
+      color: #333;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+
+    .chart-content {
+      width: 100%;
+      min-height: 300px;
+    }
+
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-radius: 50%;
+      border-top: 4px solid #3498db;
+      width: 40px;
+      height: 40px;
+      margin: 20px auto;
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  `;
+
   constructor() {
+    super();
     this.chartData = [];
   }
 
-  /**
-   * Calculate cumulative cost data from messages
-   */
-  public calculateCumulativeCostData(
-    messages: TimelineMessage[],
+  private calculateCumulativeCostData(
+    messages: TimelineMessage[]
   ): { timestamp: Date; cost: number }[] {
     if (!messages || messages.length === 0) {
       return [];
@@ -44,189 +101,17 @@ export class ChartManager {
     return data;
   }
 
-  /**
-   * Get the current chart data
-   */
-  public getChartData(): { timestamp: Date; cost: number }[] {
-    return this.chartData;
-  }
-
-  /**
-   * Set chart data
-   */
-  public setChartData(data: { timestamp: Date; cost: number }[]): void {
-    this.chartData = data;
-  }
-
-  /**
-   * Fetch all messages to generate chart data
-   */
-  public async fetchAllMessages(): Promise<void> {
-    try {
-      // Fetch all messages in a single request
-      const response = await fetch("messages");
-      if (!response.ok) {
-        throw new Error(`Failed to fetch messages: ${response.status}`);
-      }
-
-      const allMessages = await response.json();
-      if (Array.isArray(allMessages)) {
-        // Sort messages chronologically
-        allMessages.sort((a, b) => {
-          const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-          const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-          return dateA - dateB;
-        });
-
-        // Calculate cumulative cost data
-        this.chartData = this.calculateCumulativeCostData(allMessages);
-      }
-    } catch (error) {
-      console.error("Error fetching messages for chart:", error);
-      this.chartData = [];
+  protected willUpdate(changedProperties: PropertyValues): void {
+    if (changedProperties.has("messages")) {
+      this.chartData = this.calculateCumulativeCostData(this.messages);
     }
   }
 
-  /**
-   * Render all charts in the chart view
-   */
-  public async renderCharts(): Promise<void> {
-    const chartContainer = document.getElementById("chartContainer");
-    if (!chartContainer) return;
-
+  private getMessagesChartSpec(): VisualizationSpec {
     try {
-      // Show loading state
-      chartContainer.innerHTML = "<div class='loader'></div>";
-
-      // Fetch messages if necessary
-      if (this.chartData.length === 0) {
-        await this.fetchAllMessages();
-      }
-
-      // Clear the container for multiple charts
-      chartContainer.innerHTML = "";
-
-      // Create cost chart container
-      const costChartDiv = document.createElement("div");
-      costChartDiv.className = "chart-section";
-      costChartDiv.innerHTML =
-        "<h3>Dollar Usage Over Time</h3><div id='costChart'></div>";
-      chartContainer.appendChild(costChartDiv);
-
-      // Create messages chart container
-      const messagesChartDiv = document.createElement("div");
-      messagesChartDiv.className = "chart-section";
-      messagesChartDiv.innerHTML =
-        "<h3>Message Timeline</h3><div id='messagesChart'></div>";
-      chartContainer.appendChild(messagesChartDiv);
-
-      // Render both charts
-      await this.renderDollarUsageChart();
-      await this.renderMessagesChart();
-    } catch (error) {
-      console.error("Error rendering charts:", error);
-      chartContainer.innerHTML = `<p>Error rendering charts: ${error instanceof Error ? error.message : "Unknown error"}</p>`;
-    }
-  }
-
-  /**
-   * Render the dollar usage chart using Vega-Lite
-   */
-  private async renderDollarUsageChart(): Promise<void> {
-    const costChartContainer = document.getElementById("costChart");
-    if (!costChartContainer) return;
-
-    try {
-      // Display cost chart using Vega-Lite
-      if (this.chartData.length === 0) {
-        costChartContainer.innerHTML =
-          "<p>No cost data available to display.</p>";
-        return;
-      }
-
-      // Create a Vega-Lite spec for the line chart
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const costSpec: any = {
-        $schema: "https://vega.github.io/schema/vega-lite/v5.json",
-        description: "Cumulative cost over time",
-        width: "container",
-        height: 300,
-        data: {
-          values: this.chartData.map((d) => ({
-            timestamp: d.timestamp.toISOString(),
-            cost: d.cost,
-          })),
-        },
-        mark: {
-          type: "line",
-          point: true,
-        },
-        encoding: {
-          x: {
-            field: "timestamp",
-            type: "temporal",
-            title: "Time",
-            axis: {
-              format: "%H:%M:%S",
-              title: "Time",
-              labelAngle: -45,
-            },
-          },
-          y: {
-            field: "cost",
-            type: "quantitative",
-            title: "Cumulative Cost (USD)",
-            axis: {
-              format: "$,.4f",
-            },
-          },
-          tooltip: [
-            {
-              field: "timestamp",
-              type: "temporal",
-              title: "Time",
-              format: "%Y-%m-%d %H:%M:%S",
-            },
-            {
-              field: "cost",
-              type: "quantitative",
-              title: "Cumulative Cost",
-              format: "$,.4f",
-            },
-          ],
-        },
-      };
-
-      // Render the cost chart
-      await vegaEmbed(costChartContainer, costSpec, {
-        actions: true,
-        renderer: "svg",
-      });
-    } catch (error) {
-      console.error("Error rendering dollar usage chart:", error);
-      costChartContainer.innerHTML = `<p>Error rendering dollar usage chart: ${error instanceof Error ? error.message : "Unknown error"}</p>`;
-    }
-  }
-
-  /**
-   * Render the messages timeline chart using Vega-Lite
-   */
-  private async renderMessagesChart(): Promise<void> {
-    const messagesChartContainer = document.getElementById("messagesChart");
-    if (!messagesChartContainer) return;
-
-    try {
-      // Get all messages
-      const response = await fetch("messages");
-      if (!response.ok) {
-        throw new Error(`Failed to fetch messages: ${response.status}`);
-      }
-
-      const allMessages = await response.json();
+      const allMessages = this.messages;
       if (!Array.isArray(allMessages) || allMessages.length === 0) {
-        messagesChartContainer.innerHTML =
-          "<p>No messages available to display.</p>";
-        return;
+        return null;
       }
 
       // Sort messages chronologically
@@ -238,10 +123,58 @@ export class ChartManager {
 
       // Create unique indexes for all messages
       const messageIndexMap = new Map<string, number>();
+      let messageIdx = 0;
+      
+      // First pass: Process parent messages
       allMessages.forEach((msg, index) => {
         // Create a unique ID for each message to track its position
         const msgId = msg.timestamp ? msg.timestamp.toString() : `msg-${index}`;
-        messageIndexMap.set(msgId, index);
+        messageIndexMap.set(msgId, messageIdx++);
+      });
+      
+      // Process tool calls from messages to account for filtered out tool messages
+      const toolCallData: any[] = [];
+      allMessages.forEach((msg) => {
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          msg.tool_calls.forEach((toolCall) => {
+            if (toolCall.result_message) {
+              // Add this tool result message to our data
+              const resultMsg = toolCall.result_message;
+              
+              // Important: use the original message's idx to maintain the correct order
+              // The original message idx value is what we want to show in the chart
+              if (resultMsg.idx !== undefined) {
+                // If the tool call has start/end times, add it to bar data, otherwise to point data
+                if (resultMsg.start_time && resultMsg.end_time) {
+                  toolCallData.push({
+                    type: 'bar',
+                    index: resultMsg.idx,  // Use actual idx from message
+                    message_type: 'tool',
+                    content: resultMsg.content || '',
+                    tool_name: resultMsg.tool_name || toolCall.name || '',
+                    tool_input: toolCall.input || '',
+                    tool_result: resultMsg.tool_result || '',
+                    start_time: new Date(resultMsg.start_time).toISOString(),
+                    end_time: new Date(resultMsg.end_time).toISOString(),
+                    message: JSON.stringify(resultMsg, null, 2)
+                  });
+                } else if (resultMsg.timestamp) {
+                  toolCallData.push({
+                    type: 'point',
+                    index: resultMsg.idx,  // Use actual idx from message
+                    message_type: 'tool',
+                    content: resultMsg.content || '',
+                    tool_name: resultMsg.tool_name || toolCall.name || '',
+                    tool_input: toolCall.input || '',
+                    tool_result: resultMsg.tool_result || '',
+                    time: new Date(resultMsg.timestamp).toISOString(),
+                    message: JSON.stringify(resultMsg, null, 2)
+                  });
+                }
+              }
+            }
+          });
+        }
       });
 
       // Prepare data for messages with start_time and end_time (bar marks)
@@ -252,9 +185,8 @@ export class ChartManager {
           const startTime = new Date(msg.start_time!);
           const endTime = new Date(msg.end_time!);
 
-          // Get the index for this message
-          const msgId = msg.timestamp ? msg.timestamp.toString() : "";
-          const index = messageIndexMap.get(msgId) || 0;
+          // Use the message idx directly for consistent ordering
+          const index = msg.idx;
 
           // Truncate content for tooltip readability
           const displayContent = msg.content
@@ -296,9 +228,8 @@ export class ChartManager {
           // Get the timestamp
           const timestamp = new Date(msg.timestamp!);
 
-          // Get the index for this message
-          const msgId = msg.timestamp ? msg.timestamp.toString() : "";
-          const index = messageIndexMap.get(msgId) || 0;
+          // Use the message idx directly for consistent ordering
+          const index = msg.idx;
 
           // Truncate content for tooltip readability
           const displayContent = msg.content
@@ -331,12 +262,22 @@ export class ChartManager {
             message: JSON.stringify(msg, null, 2), // Full message for detailed inspection
           };
         });
+        
+      // Add tool call data to the appropriate arrays
+      const toolBarData = toolCallData.filter(d => d.type === 'bar').map(d => {
+        delete d.type;
+        return d;
+      });
+      
+      const toolPointData = toolCallData.filter(d => d.type === 'point').map(d => {
+        delete d.type;
+        return d;
+      });
 
       // Check if we have any data to display
-      if (barData.length === 0 && pointData.length === 0) {
-        messagesChartContainer.innerHTML =
-          "<p>No message timing data available to display.</p>";
-        return;
+      if (barData.length === 0 && pointData.length === 0 && 
+          toolBarData.length === 0 && toolPointData.length === 0) {
+        return null;
       }
 
       // Calculate height based on number of unique messages
@@ -352,9 +293,10 @@ export class ChartManager {
       };
 
       // Add bar layer if we have bar data
-      if (barData.length > 0) {
+      if (barData.length > 0 || toolBarData.length > 0) {
+        const combinedBarData = [...barData, ...toolBarData];
         messagesSpec.layer.push({
-          data: { values: barData },
+          data: { values: combinedBarData },
           mark: {
             type: "bar",
             height: 16,
@@ -409,9 +351,10 @@ export class ChartManager {
       }
 
       // Add point layer if we have point data
-      if (pointData.length > 0) {
+      if (pointData.length > 0 || toolPointData.length > 0) {
+        const combinedPointData = [...pointData, ...toolPointData];
         messagesSpec.layer.push({
-          data: { values: pointData },
+          data: { values: combinedPointData },
           mark: {
             type: "point",
             size: 100,
@@ -454,15 +397,94 @@ export class ChartManager {
           },
         });
       }
-
-      // Render the messages timeline chart
-      await vegaEmbed(messagesChartContainer, messagesSpec, {
-        actions: true,
-        renderer: "svg",
-      });
+      return messagesSpec;
     } catch (error) {
       console.error("Error rendering messages chart:", error);
-      messagesChartContainer.innerHTML = `<p>Error rendering messages chart: ${error instanceof Error ? error.message : "Unknown error"}</p>`;
     }
+  }
+
+  render() {
+    const costSpec = this.createCostChartSpec();
+    const messagesSpec = this.getMessagesChartSpec();
+
+    return html`
+      <div class="chart-container" id="chartContainer">
+        <div class="chart-section">
+          <h3>Dollar Usage Over Time</h3>
+          <div class="chart-content">
+          ${this.chartData.length > 0 ? 
+            html`<vega-embed .spec=${costSpec}></vega-embed>` 
+            : html`<p>No cost data available to display.</p>`}
+          </div>
+        </div>
+        <div class="chart-section">
+          <h3>Message Timeline</h3>
+          <div class="chart-content">
+          ${messagesSpec?.data ? 
+              html`<vega-embed .spec=${messagesSpec}></vega-embed>`
+              : html`<p>No messages available to display.</p>`}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private createCostChartSpec(): VisualizationSpec {
+    return {
+      $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+      description: "Cumulative cost over time",
+      width: "container",
+      height: 300,
+      data: {
+        values: this.chartData.map((d) => ({
+          timestamp: d.timestamp.toISOString(),
+          cost: d.cost,
+        })),
+      },
+      mark: {
+        type: "line",
+        point: true,
+      },
+      encoding: {
+        x: {
+          field: "timestamp",
+          type: "temporal",
+          title: "Time",
+          axis: {
+            format: "%H:%M:%S",
+            title: "Time",
+            labelAngle: -45,
+          },
+        },
+        y: {
+          field: "cost",
+          type: "quantitative",
+          title: "Cumulative Cost (USD)",
+          axis: {
+            format: "$,.4f",
+          },
+        },
+        tooltip: [
+          {
+            field: "timestamp",
+            type: "temporal",
+            title: "Time",
+            format: "%Y-%m-%d %H:%M:%S",
+          },
+          {
+            field: "cost",
+            type: "quantitative",
+            title: "Cumulative Cost",
+            format: "$,.4f",
+          },
+        ],
+      },
+    };
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "sketch-charts": SketchCharts;
   }
 }

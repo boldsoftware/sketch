@@ -1,0 +1,40 @@
+<html>
+  <head>
+    <title>sketch-container-status demo</title>
+    <link rel="stylesheet" href="demo.css" />
+    <script src="/dist/web-components/sketch-container-status.js" type="module"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const containerStatus = document.querySelector('#status-2');
+        containerStatus.state = {
+          hostname: 'example.hostname',
+          initial_commit: 'decafbad',
+          message_count: 27,
+          os: 'linux',
+          total_usage: {
+            start_time: 'around lunch',
+            messages:1337,
+            input_tokens: 3,
+            output_tokens: 1000,
+            cache_read_input_tokens: 28,
+            cache_creation_input_tokens: 12354,
+            total_cost_usd: 2.03,
+          }, 
+          working_dir: '/app',
+        };
+      });
+    </script>
+
+  </head>
+  <body>
+    <h1>sketch-container-status demo</h1>
+
+    Empty:
+    <sketch-container-status id="status-1"></sketch-container-status>
+
+    With state fields set:
+    <sketch-container-status id="status-2"></sketch-container-status>
+
+  </body>
+</html>

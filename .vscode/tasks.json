@@ -1,0 +1,41 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "watch",
+      "path": "loop/webui",
+      "group": "build",
+      "problemMatcher": ["$tsc-watch"],
+      "label": "webui: watch tsc",
+      "detail": "tsc --watch",
+      "isBackground": true
+    },
+    {
+      "type": "npm",
+      "script": "demo",
+      "path": "loop/webui",
+      "group": "build",
+      "label": "webui: watch demo",
+      "isBackground": true,
+      "dependsOn": ["webui: watch tsc"],
+      "problemMatcher": [
+        {
+          "pattern": [
+            {
+              "regexp": ".",
+              "file": 1,
+              "location": 2,
+              "message": 3
+            }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "Web Dev Server started...",
+            "endsPattern": "Network:"
+          }
+        }
+      ]
+    }
+  ]
+}

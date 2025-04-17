@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Sketch Charts Demo</title>
+    <script type="module" src="/dist/web-components/sketch-charts.js"></script>
+    <link rel="stylesheet" href="demo.css" />
+    <style>
+      sketch-charts {
+        margin: 20px;
+        max-width: 1000px;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sketch Charts Demo</h1>
+    <sketch-charts id="charts"></sketch-charts>
+
+    <script>
+      // Sample data for testing
+      const sampleMessages = [
+        {
+          idx: 1,
+          type: "human",
+          content: "Hello, can you help me with a coding task?",
+          timestamp: new Date(Date.now() - 3600000).toISOString(),
+          usage: { cost_usd: 0.0001 },
+        },
+        {
+          idx: 2,
+          type: "assistant",
+          content:
+            "I'd be happy to help! What kind of coding task are you working on?",
+          timestamp: new Date(Date.now() - 3500000).toISOString(),
+          usage: { cost_usd: 0.0005 },
+        },
+        {
+          idx: 3,
+          type: "human",
+          content: "I need to create a web component using lit-element",
+          timestamp: new Date(Date.now() - 3400000).toISOString(),
+          usage: { cost_usd: 0.0001 },
+        },
+        {
+          idx: 4,
+          type: "assistant",
+          content:
+            "I can definitely help with that. Lit Element is a great library for building web components.",
+          timestamp: new Date(Date.now() - 3300000).toISOString(),
+          usage: { cost_usd: 0.0008 },
+        },
+        {
+          idx: 5,
+          type: "assistant",
+          tool_name: "bash",
+          input: "ls -la",
+          tool_result:
+            "total 16\ndrwxr-xr-x  4 user  staff  128 Jan 10 12:34 .\ndrwxr-xr-x 10 user  staff  320 Jan 10 12:34 ..\n-rw-r--r--  1 user  staff  123 Jan 10 12:34 file1.txt\n-rw-r--r--  1 user  staff  456 Jan 10 12:34 file2.txt",
+          start_time: new Date(Date.now() - 3200000).toISOString(),
+          end_time: new Date(Date.now() - 3190000).toISOString(),
+          timestamp: new Date(Date.now() - 3190000).toISOString(),
+          usage: { cost_usd: 0.0002 },
+        },
+        {
+          idx: 6,
+          type: "assistant",
+          content: "Let me create a basic web component for you.",
+          timestamp: new Date(Date.now() - 3100000).toISOString(),
+          usage: { cost_usd: 0.0015 },
+        },
+        {
+          idx: 7,
+          type: "human",
+          content: "Can you show me how to handle events in the web component?",
+          timestamp: new Date(Date.now() - 3000000).toISOString(),
+          usage: { cost_usd: 0.0001 },
+        },
+        {
+          idx: 8,
+          type: "assistant",
+          tool_name: "bash",
+          input: "cat example.ts",
+          tool_result:
+            "import { LitElement, html } from 'lit';\nimport { customElement } from 'lit/decorators.js';\n\n@customElement('my-element')\nexport class MyElement extends LitElement {\n  render() {\n    return html`<div>Hello World</div>`;\n  }\n}",
+          start_time: new Date(Date.now() - 2900000).toISOString(),
+          end_time: new Date(Date.now() - 2800000).toISOString(),
+          timestamp: new Date(Date.now() - 2800000).toISOString(),
+          usage: { cost_usd: 0.0003 },
+        },
+        {
+          idx: 9,
+          type: "assistant",
+          content:
+            "Here's how you can handle events in a web component using Lit.",
+          timestamp: new Date(Date.now() - 2700000).toISOString(),
+          usage: { cost_usd: 0.002 },
+        },
+        {
+          idx: 10,
+          type: "human",
+          content: "Thank you! How about adding properties and attributes?",
+          timestamp: new Date(Date.now() - 2600000).toISOString(),
+          usage: { cost_usd: 0.0001 },
+        },
+        {
+          idx: 11,
+          type: "assistant",
+          content:
+            "You can use the @property decorator to define properties in your Lit Element component.",
+          timestamp: new Date(Date.now() - 2500000).toISOString(),
+          usage: { cost_usd: 0.0025 },
+        },
+      ];
+
+      // Set sample data as soon as the component is defined
+      document.addEventListener("DOMContentLoaded", () => {
+        console.time("chart-demo-load");
+        const chartsComponent = document.getElementById("charts");
+        chartsComponent.messages = sampleMessages;
+        console.timeEnd("chart-demo-load");
+      });
+    </script>
+  </body>
+</html>

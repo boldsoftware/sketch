@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sketch coding assistant (web components UI implementation)</title>
+    <!-- We only need basic body styling; all component styles are encapsulated -->
+    <style>
+      html,
+      body {
+        height: 100%;
+        overflow-y: auto;
+      }
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
+        margin: 0;
+        padding: 0;
+        color: #333;
+        line-height: 1.4;
+        overflow-x: hidden; /* Prevent horizontal scrolling */
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+    <script src="static/sketch-app-shell.js" async type="module"></script>
+  </head>
+  <body>
+    <sketch-app-shell></sketch-app-shell>
+  </body>
+</html>

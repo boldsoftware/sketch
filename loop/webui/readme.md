@@ -49,3 +49,14 @@ The server code accesses the built web UI through the `webui.GetBundle()` functi
 - `dist/`: Generated JavaScript bundle
 - `esbuild.go`: Go code for bundling TypeScript files
 - `Makefile`: Build tasks
+
+## Bundle Analysis
+
+You can analyze the size and dependency structure of the TypeScript bundles:
+
+```bash
+# Generate bundle metafiles in a temporary directory
+go run sketch.dev/cmd/bundle-analyzer
+```
+
+The tool generates metafiles that can be analyzed by dragging them onto the esbuild analyzer at https://esbuild.github.io/analyze/

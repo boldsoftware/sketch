@@ -379,8 +379,8 @@ func New(agent loop.CodingAgent, logFile *os.File) (*Server, error) {
 	})
 
 	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Serve the timeline.html file directly from the embedded filesystem
-		data, err := fs.ReadFile(webBundle, "timeline.html")
+		// Serve the sketch-app-shell.html file directly from the embedded filesystem
+		data, err := fs.ReadFile(webBundle, "sketch-app-shell.html")
 		if err != nil {
 			http.Error(w, "File not found", http.StatusNotFound)
 			return

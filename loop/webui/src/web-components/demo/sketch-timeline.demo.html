@@ -1,0 +1,47 @@
+<html>
+  <head>
+    <title>sketch-timeline demo</title>
+    <link rel="stylesheet" href="demo.css" />
+    <script src="/dist/web-components/sketch-timeline.js" type="module"></script>
+
+    <script>
+      const messages = [
+        {
+          type: "user",
+          content: "a user message",
+        },
+        {
+          type: "agent",
+          content: "an agent message",
+        },
+        {
+          type: "agent",
+          content: "an agent message",
+        },
+        {
+          type: "agent",
+          content: "an agent message",
+        },
+        {
+          type: "user",
+          content: "a user message",
+        },
+        {
+          type: "user",
+          content: "a user message",
+        },
+      ];
+      document.addEventListener("DOMContentLoaded", () => {
+        const timelineEl = document.querySelector('sketch-timeline');
+        timelineEl.messages = messages;
+      });
+    </script>
+
+  </head>
+  <body>
+    <h1>sketch-timeline demo</h1>
+
+    <sketch-timeline></sketch-timeline>
+
+  </body>
+</html>

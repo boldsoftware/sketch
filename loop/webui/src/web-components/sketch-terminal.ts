@@ -1,10 +1,14 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 
-/**
- * Class to handle terminal functionality in the timeline UI.
- */
-export class TerminalHandler {
+import {css, html, LitElement} from 'lit';
+import {customElement, property, state} from 'lit/decorators.js';
+import {DataManager, ConnectionStatus} from '../data';
+import {State, TimelineMessage} from '../types';
+import './sketch-container-status';
+
+@customElement('sketch-terminal')
+export class SketchTerminal extends LitElement {
   // Terminal instance
   private terminal: Terminal | null = null;
   // Terminal fit addon for handling resize
@@ -17,20 +21,94 @@ export class TerminalHandler {
   private terminalInputQueue: string[] = [];
   // Flag to track if we're currently processing a terminal input
   private processingTerminalInput: boolean = false;
-  // Current view mode (needed for resize handling)
-  private viewMode: string = "chat";
 
-  /**
-   * Constructor for TerminalHandler
-   */
-  constructor() {}
+  static styles = css`
+/* Terminal View Styles */
+.terminal-view {
+  width: 100%;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 15px;
+  height: 70vh;
+}
 
-  /**
-   * Sets the current view mode
-   * @param mode The current view mode
-   */
-  public setViewMode(mode: string): void {
-    this.viewMode = mode;
+.terminal-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+`;
+
+  constructor() {
+    super();
+    this._resizeHandler = this._resizeHandler.bind(this);
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.loadXtermlCSS();
+    // Setup resize handler
+    window.addEventListener("resize", this._resizeHandler);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+
+    window.removeEventListener("resize", this._resizeHandler);
+
+    this.closeTerminalConnections();
+
+    if (this.terminal) {
+      this.terminal.dispose();
+      this.terminal = null;
+    }
+    this.fitAddon = null;
+  }
+
+  firstUpdated() {
+    this.initializeTerminal();
+  }
+
+  _resizeHandler() {
+    if (this.fitAddon) {
+      this.fitAddon.fit();
+      // Send resize information to server
+      this.sendTerminalResize();
+    }
+  }
+
+  // Load xterm CSS into the shadow DOM
+  private async loadXtermlCSS() {
+    try {
+      // Check if diff2html styles are already loaded
+      const styleId = 'xterm-styles';
+      if (this.shadowRoot?.getElementById(styleId)) {
+        return; // Already loaded
+      }
+
+      // Fetch the diff2html CSS
+      const response = await fetch('static/xterm.css');
+
+      if (!response.ok) {
+        console.error(`Failed to load xterm CSS: ${response.status} ${response.statusText}`);
+        return;
+      }
+
+      const cssText = await response.text();
+
+      // Create a style element and append to shadow DOM
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = cssText;
+      this.renderRoot?.appendChild(style);
+
+      console.log('xterm CSS loaded into shadow DOM');
+    } catch (error) {
+      console.error('Error loading xterm CSS:', error);
+    }
   }
 
   /**
@@ -38,7 +116,7 @@ export class TerminalHandler {
    * @param terminalContainer The DOM element to contain the terminal
    */
   public async initializeTerminal(): Promise<void> {
-    const terminalContainer = document.getElementById("terminalContainer");
+    const terminalContainer = this.renderRoot.querySelector("#terminalContainer") as HTMLElement;
 
     if (!terminalContainer) {
       console.error("Terminal container not found");
@@ -81,15 +159,6 @@ export class TerminalHandler {
     // Fit the terminal to the container
     this.fitAddon.fit();
 
-    // Setup resize handler
-    window.addEventListener("resize", () => {
-      if (this.viewMode === "terminal" && this.fitAddon) {
-        this.fitAddon.fit();
-        // Send resize information to server
-        this.sendTerminalResize();
-      }
-    });
-
     // Focus the terminal
     this.terminal.focus();
   }
@@ -111,13 +180,13 @@ export class TerminalHandler {
       const baseUrl = window.location.pathname.endsWith('/') ? '.' : '.';
       const eventsUrl = `${baseUrl}/terminal/events/${this.terminalId}`;
       this.terminalEventSource = new EventSource(eventsUrl);
-      
+
       // Handle SSE events
       this.terminalEventSource.onopen = () => {
         console.log("Terminal SSE connection opened");
         this.sendTerminalResize();
       };
-      
+
       this.terminalEventSource.onmessage = (event) => {
         if (this.terminal) {
           // Decode base64 data before writing to terminal
@@ -131,7 +200,7 @@ export class TerminalHandler {
           }
         }
       };
-      
+
       this.terminalEventSource.onerror = (error) => {
         console.error("Terminal SSE error:", error);
         if (this.terminal) {
@@ -142,7 +211,7 @@ export class TerminalHandler {
           this.closeTerminalConnections();
         }
       };
-      
+
       // Send key inputs to the server via POST requests
       if (this.terminal) {
         this.terminal.onData((data) => {
@@ -174,7 +243,7 @@ export class TerminalHandler {
   private async sendTerminalInput(data: string): Promise<void> {
     // Add the data to the queue
     this.terminalInputQueue.push(data);
-    
+
     // If we're not already processing inputs, start processing
     if (!this.processingTerminalInput) {
       await this.processTerminalInputQueue();
@@ -189,17 +258,17 @@ export class TerminalHandler {
       this.processingTerminalInput = false;
       return;
     }
-    
+
     this.processingTerminalInput = true;
-    
+
     // Concatenate all available inputs from the queue into a single request
     let combinedData = '';
-    
+
     // Take all currently available items from the queue
     while (this.terminalInputQueue.length > 0) {
       combinedData += this.terminalInputQueue.shift()!;
     }
-    
+
     try {
       // Use relative URL based on current location
       const baseUrl = window.location.pathname.endsWith('/') ? '.' : '.';
@@ -210,14 +279,14 @@ export class TerminalHandler {
           'Content-Type': 'text/plain'
         }
       });
-      
+
       if (!response.ok) {
         console.error(`Failed to send terminal input: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
       console.error("Error sending terminal input:", error);
     }
-    
+
     // Continue processing the queue (for any new items that may have been added)
     await this.processTerminalInputQueue();
   }
@@ -246,7 +315,7 @@ export class TerminalHandler {
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (!response.ok) {
         console.error(`Failed to send terminal resize: ${response.status} ${response.statusText}`);
       }
@@ -255,15 +324,18 @@ export class TerminalHandler {
     }
   }
 
-  /**
-   * Clean up resources when component is destroyed
-   */
-  public dispose(): void {
-    this.closeTerminalConnections();
-    if (this.terminal) {
-      this.terminal.dispose();
-      this.terminal = null;
-    }
-    this.fitAddon = null;
+
+  render() {
+    return html`
+      <div id="terminalView" class="terminal-view">
+         <div id="terminalContainer" class="terminal-container"></div>
+      </div>
+    `;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "sketch-terminal": SketchTerminal;
   }
 }

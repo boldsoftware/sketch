@@ -1,0 +1,190 @@
+<html>
+  <head>
+    <title>sketch-tool-calls demo</title>
+    <link rel="stylesheet" href="demo.css" />
+
+    <script
+      src="/dist/web-components/sketch-tool-calls.js"
+      type="module"
+    ></script>
+
+    <script>
+      const toolCalls = [
+        [
+          {
+            name: "bash",
+            input: JSON.stringify({
+              command: "ls -a",
+            }),
+          },
+        ],
+        [
+          {
+            name: "bash",
+            input: JSON.stringify({
+              command: "ls -a",
+            }),
+            result_message: {
+              type: "tool",
+              tool_result: ".\n..",
+            },
+          },
+        ],
+        [
+          {
+            name: "bash",
+            input: JSON.stringify({
+              command: "sleep 200",
+            }),
+            result_message: {
+              type: "tool",
+              tool_error: "the user canceled this operation",
+            },
+          },
+        ],
+        [
+          {
+            name: "title",
+            input: JSON.stringify({
+              title: "a new title for this sketch",
+            }),
+          },
+        ],
+        [
+          {
+            name: "codereview",
+            input: "{}",
+            tool_call_id: "toolu_01WT5qQwHZgdogfKhkD8R9PZ",
+            result_message: {
+              type: "tool",
+              end_of_turn: false,
+              content: "",
+              tool_name: "codereview",
+              input: "{}",
+              tool_result: "OK",
+              tool_call_id: "toolu_01WT5qQwHZgdogfKhkD8R9PZ",
+              timestamp: "2025-04-14T16:33:17.575759565Z",
+              conversation_id: "xsa-8hw0",
+              start_time: "2025-04-14T16:33:07.11793816Z",
+              end_time: "2025-04-14T16:33:17.57575719Z",
+              elapsed: 10457819031,
+              idx: 45,
+            },
+          },
+        ],
+        [
+          {
+            name: "codereview",
+            input: "{}",
+            tool_call_id: "toolu_01WT5qQwHZgdogfKhkD8R9PZ",
+            result_message: {
+              type: "tool",
+              end_of_turn: false,
+              content: "",
+              tool_name: "codereview",
+              input: "{}",
+              tool_result: "Not OK",
+              tool_call_id: "toolu_01WT5qQwHZgdogfKhkD8R9PZ",
+              timestamp: "2025-04-14T16:33:17.575759565Z",
+              conversation_id: "xsa-8hw0",
+              start_time: "2025-04-14T16:33:07.11793816Z",
+              end_time: "2025-04-14T16:33:17.57575719Z",
+              elapsed: 10457819031,
+              idx: 45,
+            },
+          },
+        ],
+        [
+          {
+            name: "think",
+            input:
+              '{"thoughts":"I\'m going to inspect a few key components to understand their purpose and relationships:\\n1. sketch-app-shell.ts - Appears to be the main container component\\n2. sketch-timeline.ts - Likely manages the chat timeline\\n3. sketch-view-mode-select.ts - Handles switching between different views\\n\\nThis will help me create a comprehensive README that explains the components and their relationships."}',
+            tool_call_id: "toolu_01R1g5mQVgKxEJZFNp9QGvUr",
+            result_message: {
+              type: "tool",
+              end_of_turn: false,
+              content: "",
+              tool_name: "think",
+              input:
+                '{"thoughts":"I\'m going to inspect a few key components to understand their purpose and relationships:\\n1. sketch-app-shell.ts - Appears to be the main container component\\n2. sketch-timeline.ts - Likely manages the chat timeline\\n3. sketch-view-mode-select.ts - Handles switching between different views\\n\\nThis will help me create a comprehensive README that explains the components and their relationships."}',
+              tool_result: "recorded",
+              tool_call_id: "toolu_01R1g5mQVgKxEJZFNp9QGvUr",
+              timestamp: "2025-04-14T16:32:14.12647133Z",
+              conversation_id: "xsa-8hw0",
+              start_time: "2025-04-14T16:32:14.126454329Z",
+              end_time: "2025-04-14T16:32:14.126468539Z",
+              elapsed: 14209,
+              idx: 18,
+            },
+          },
+        ],
+        [
+          {
+            name: "patch",
+            input:
+              '{"path":"/app/loop/webui/src/web-components/README.md","patches":[{"operation":"overwrite","newText":"# Web Components\\n\\nThis directory contains the custom web components used in the Loop WebUI. These components are built using the [Lit](https://lit.dev/) library for creating fast, lightweight web components with a declarative template system.\\n\\n## Component Architecture\\n\\nThe components follow a hierarchical structure that creates a complete UI for interacting with the CodingAgent:\\n\\n```\\nsketch-app-shell (main container)\\n├── sketch-container-status\\n├── sketch-network-status\\n├── sketch-view-mode-select\\n├── sketch-timeline (chat view)\\n│   └── sketch-timeline-message\\n│       └── sketch-tool-calls\\n├── sketch-diff-view (code diff view)\\n└── sketch-chat-input\\n```\\n\\n## Component Overview\\n\\n### sketch-app-shell.ts\\nThe main container component that orchestrates the entire UI. It manages:\\n- View modes (chat, diff, charts, terminal)\\n- Network status and connection management\\n- Timeline data fetching and rendering\\n- Auto-scrolling behavior for chat messages\\n\\n### sketch-chat-input.ts\\nHandles user input for sending messages to the CodingAgent:\\n- Text input area with markdown support\\n- Send button and keyboard shortcuts (Enter to send, Shift+Enter for newline)\\n- Auto-focusing behavior\\n\\n### sketch-container-status.ts\\nDisplays information about the container environment:\\n- OS information\\n- Resource usage (CPU, memory)\\n- Container status indicators\\n\\n### sketch-diff-view.ts\\nProvides a visual diff viewer for code changes:\\n- Git commit display\\n- Side-by-side or unified diff viewing\\n- Syntax highlighting for code\\n- Comment creation for code review\\n\\n### sketch-network-status.ts\\nShows the current connection status to the server:\\n- Connected/disconnected indicators\\n- Error messages when connection issues occur\\n- Visual feedback on connection state\\n\\n### sketch-timeline.ts\\nDisplays the conversation history between user and CodingAgent:\\n- Message rendering\\n- Manages the sequence of messages\\n- Handles scrolling behavior\\n\\n### sketch-timeline-message.ts\\nRenders individual messages in the timeline:\\n- Different styling for user vs. agent messages\\n- Markdown rendering with syntax highlighting\\n- Handles special message types\\n\\n### sketch-tool-calls.ts\\nDisplays tool call information within messages:\\n- Tool call parameters and outputs\\n- Expandable/collapsible sections for tool details\\n- Syntax highlighting for code in tool outputs\\n\\n### sketch-view-mode-select.ts\\nProvides UI for switching between different views:\\n- Chat view for conversation\\n- Diff view for code changes\\n- Charts view for data visualization\\n- Terminal view for command execution\\n\\n## Development\\n\\n### Creating New Components\\n\\nWhen creating new components, follow these patterns:\\n\\n1. Use the `@customElement` decorator to define the component\\n2. Encapsulate styles using the static `styles` property\\n3. Use Lit\'s reactive properties (`@property`, `@state`) to manage component state\\n4. Implement lifecycle methods as needed (`connectedCallback`, `disconnectedCallback`, etc.)\\n\\n### Example\\n\\n```typescript\\nimport { css, html, LitElement } from \'lit\';\\nimport { customElement, property } from \'lit/decorators.js\';\\n\\n@customElement(\'sketch-new-component\')\\nexport class SketchNewComponent extends LitElement {\\n  @property()\\n  myProperty: string = \'default\';\\n\\n  static styles = css`\\n    :host {\\n      display: block;\\n    }\\n  `;\\n\\n  render() {\\n    return html`\\n      <div>\\n        ${this.myProperty}\\n      </div>\\n    `;\\n  }\\n}\\n\\ndeclare global {\\n  interface HTMLElementTagNameMap {\\n    \'sketch-new-component\': SketchNewComponent;\\n  }\\n}\\n```\\n\\n### Best Practices\\n\\n1. Maintain a single responsibility for each component\\n2. Use properties and events for parent-child communication\\n3. Document the purpose and API of each component\\n4. Write tests for components where possible\\n5. Keep styles encapsulated within components\\n6. Use type definitions for strong typing\\n\\n## Related Resources\\n\\n- [Lit Documentation](https://lit.dev/docs/)\\n- [Web Components Introduction](https://developer.mozilla.org/en-US/docs/Web/Web_Components)\\n- See `/app/loop/webui/readme.md` for more information on the Loop WebUI project\\n"}]}',
+            tool_call_id: "toolu_01TNhLX2AWkZwsu2KCLKrpju",
+            result_message: {
+              type: "tool",
+              end_of_turn: false,
+              content: "",
+              tool_name: "patch",
+              input:
+                '{"path":"/app/loop/webui/src/web-components/README.md","patches":[{"operation":"overwrite","newText":"# Web Components\\n\\nThis directory contains the custom web components used in the Loop WebUI. These components are built using the [Lit](https://lit.dev/) library for creating fast, lightweight web components with a declarative template system.\\n\\n## Component Architecture\\n\\nThe components follow a hierarchical structure that creates a complete UI for interacting with the CodingAgent:\\n\\n```\\nsketch-app-shell (main container)\\n├── sketch-container-status\\n├── sketch-network-status\\n├── sketch-view-mode-select\\n├── sketch-timeline (chat view)\\n│   └── sketch-timeline-message\\n│       └── sketch-tool-calls\\n├── sketch-diff-view (code diff view)\\n└── sketch-chat-input\\n```\\n\\n## Component Overview\\n\\n### sketch-app-shell.ts\\nThe main container component that orchestrates the entire UI. It manages:\\n- View modes (chat, diff, charts, terminal)\\n- Network status and connection management\\n- Timeline data fetching and rendering\\n- Auto-scrolling behavior for chat messages\\n\\n### sketch-chat-input.ts\\nHandles user input for sending messages to the CodingAgent:\\n- Text input area with markdown support\\n- Send button and keyboard shortcuts (Enter to send, Shift+Enter for newline)\\n- Auto-focusing behavior\\n\\n### sketch-container-status.ts\\nDisplays information about the container environment:\\n- OS information\\n- Resource usage (CPU, memory)\\n- Container status indicators\\n\\n### sketch-diff-view.ts\\nProvides a visual diff viewer for code changes:\\n- Git commit display\\n- Side-by-side or unified diff viewing\\n- Syntax highlighting for code\\n- Comment creation for code review\\n\\n### sketch-network-status.ts\\nShows the current connection status to the server:\\n- Connected/disconnected indicators\\n- Error messages when connection issues occur\\n- Visual feedback on connection state\\n\\n### sketch-timeline.ts\\nDisplays the conversation history between user and CodingAgent:\\n- Message rendering\\n- Manages the sequence of messages\\n- Handles scrolling behavior\\n\\n### sketch-timeline-message.ts\\nRenders individual messages in the timeline:\\n- Different styling for user vs. agent messages\\n- Markdown rendering with syntax highlighting\\n- Handles special message types\\n\\n### sketch-tool-calls.ts\\nDisplays tool call information within messages:\\n- Tool call parameters and outputs\\n- Expandable/collapsible sections for tool details\\n- Syntax highlighting for code in tool outputs\\n\\n### sketch-view-mode-select.ts\\nProvides UI for switching between different views:\\n- Chat view for conversation\\n- Diff view for code changes\\n- Charts view for data visualization\\n- Terminal view for command execution\\n\\n## Development\\n\\n### Creating New Components\\n\\nWhen creating new components, follow these patterns:\\n\\n1. Use the `@customElement` decorator to define the component\\n2. Encapsulate styles using the static `styles` property\\n3. Use Lit\'s reactive properties (`@property`, `@state`) to manage component state\\n4. Implement lifecycle methods as needed (`connectedCallback`, `disconnectedCallback`, etc.)\\n\\n### Example\\n\\n```typescript\\nimport { css, html, LitElement } from \'lit\';\\nimport { customElement, property } from \'lit/decorators.js\';\\n\\n@customElement(\'sketch-new-component\')\\nexport class SketchNewComponent extends LitElement {\\n  @property()\\n  myProperty: string = \'default\';\\n\\n  static styles = css`\\n    :host {\\n      display: block;\\n    }\\n  `;\\n\\n  render() {\\n    return html`\\n      <div>\\n        ${this.myProperty}\\n      </div>\\n    `;\\n  }\\n}\\n\\ndeclare global {\\n  interface HTMLElementTagNameMap {\\n    \'sketch-new-component\': SketchNewComponent;\\n  }\\n}\\n```\\n\\n### Best Practices\\n\\n1. Maintain a single responsibility for each component\\n2. Use properties and events for parent-child communication\\n3. Document the purpose and API of each component\\n4. Write tests for components where possible\\n5. Keep styles encapsulated within components\\n6. Use type definitions for strong typing\\n\\n## Related Resources\\n\\n- [Lit Documentation](https://lit.dev/docs/)\\n- [Web Components Introduction](https://developer.mozilla.org/en-US/docs/Web/Web_Components)\\n- See `/app/loop/webui/readme.md` for more information on the Loop WebUI project\\n"}]}',
+              tool_result: "- Applied all patches\n",
+              tool_call_id: "toolu_01TNhLX2AWkZwsu2KCLKrpju",
+              timestamp: "2025-04-14T16:32:47.10299854Z",
+              conversation_id: "xsa-8hw0",
+              start_time: "2025-04-14T16:32:47.101660683Z",
+              end_time: "2025-04-14T16:32:47.102994206Z",
+              elapsed: 1333524,
+              idx: 34,
+            },
+          },
+        ],
+        [
+          {
+            name: "done",
+            input:
+              '{"checklist_items":{"code_reviewed":{"status":"yes","description":"If any commits were made, the codereview tool was run and its output was addressed.","comments":"Since this commit only adds a documentation file (README.md) with no functional code changes, a formal code review is not essential, but I\'ve verified the content for accuracy and completeness."},"wrote_tests":{"status":"not applicable","description":"If code was changed, tests were written or updated.","comments":"No code was changed; only documentation was added. The README file is purely informational and doesn\'t require tests."},"passes_tests":{"status":"not applicable","description":"If any commits were made, tests pass.","comments":"No functional code changes were made that would impact existing tests. The addition of a README file is a documentation-only change."},"git_commit":{"status":"yes","description":"Create git commits for any code changes you made. Match the style of recent commit messages. Include \'Co-Authored-By: sketch\' and the original user prompt. Use GIT_AUTHOR_NAME=\\"Sean McCullough\\" GIT_AUTHOR_EMAIL=\\"banksean@gmail.com\\" (not git config).","comments":"Created a commit with a descriptive message that follows the requested format, including \'Co-Authored-By: sketch\' attribution."}}}',
+            tool_call_id: "toolu_01HPgWQJF1aF9LUqkdDKWeES",
+            result_message: {
+              type: "tool",
+              end_of_turn: false,
+              content: "",
+              tool_name: "done",
+              input:
+                '{"checklist_items":{"code_reviewed":{"status":"yes","description":"If any commits were made, the codereview tool was run and its output was addressed.","comments":"Since this commit only adds a documentation file (README.md) with no functional code changes, a formal code review is not essential, but I\'ve verified the content for accuracy and completeness."},"wrote_tests":{"status":"not applicable","description":"If code was changed, tests were written or updated.","comments":"No code was changed; only documentation was added. The README file is purely informational and doesn\'t require tests."},"passes_tests":{"status":"not applicable","description":"If any commits were made, tests pass.","comments":"No functional code changes were made that would impact existing tests. The addition of a README file is a documentation-only change."},"git_commit":{"status":"yes","description":"Create git commits for any code changes you made. Match the style of recent commit messages. Include \'Co-Authored-By: sketch\' and the original user prompt. Use GIT_AUTHOR_NAME=\\"Sean McCullough\\" GIT_AUTHOR_EMAIL=\\"banksean@gmail.com\\" (not git config).","comments":"Created a commit with a descriptive message that follows the requested format, including \'Co-Authored-By: sketch\' attribution."}}}',
+              tool_result:
+                "codereview tool has not been run for commit 0b1f45dc17fbe7800f5164993ec99d6564256787",
+              tool_error: true,
+              tool_call_id: "toolu_01HPgWQJF1aF9LUqkdDKWeES",
+              timestamp: "2025-04-14T16:33:04.639179373Z",
+              conversation_id: "xsa-8hw0",
+              start_time: "2025-04-14T16:33:04.616273148Z",
+              end_time: "2025-04-14T16:33:04.639173456Z",
+              elapsed: 22900309,
+              idx: 43,
+            },
+          },
+        ],
+      ];
+      document.addEventListener("DOMContentLoaded", () => {
+        toolCalls.forEach((calls) => {
+          const jsonEl = document.createElement("pre");
+          jsonEl.innerText = `.toolCalls property: ${JSON.stringify(calls)}`;
+          document.body.append(jsonEl);
+
+          const toolCallsEl = document.createElement("sketch-tool-calls");
+          toolCallsEl.toolCalls = calls;
+          document.body.append(toolCallsEl);
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <h1>sketch-tool-calls demo</h1>
+
+    <sketch-tool-calls></sketch-tool-calls>
+  </body>
+</html>

@@ -1,35 +1,46 @@
 {
   "name": "webui",
-  "version": "1.0.0",
   "description": "Web UI for CodingAgent.",
+  "license": "ISC",
+  "author": "",
+  "version": "1.0.0",
   "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./sketch-app-shell.js": "./dist/sketch-app-shell.js"
+  },
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build:tailwind": "npx postcss ./src/input.css -o ./src/tailwind.css",
-    "build:tailwind:watch": "npx postcss ./src/input.css -o ./src/tailwind.css --watch"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "@types/marked": "^5.0.2",
-    "@types/node": "^22.13.14",
-    "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.1",
-    "postcss": "^8.5.3",
-    "postcss-cli": "^11.0.1",
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5.8.2"
+    "demo": "web-dev-server -config ./web-dev-server.config.mjs --node-resolve --open /src/web-components/demo/",
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "test": "tsc && wtr --coverage",
+    "test:manual": "tsc && wtr --manual",
+    "test:watch": "tsc && concurrently -k -r \"tsc --watch --preserveWatchOutput\" \"wtr --watch\""
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "diff2html": "3.4.51",
-    "lit-html": "^3.2.1",
+    "lit": "^3.2.1",
     "marked": "^15.0.7",
+    "sanitize-html": "^2.15.0",
     "vega": "^5.33.0",
     "vega-embed": "^6.29.0",
     "vega-lite": "^5.23.0"
-  }
+  },
+  "devDependencies": {
+    "@open-wc/dev-server-hmr": "^0.1.2-next.0",
+    "@open-wc/testing": "^4.0.0",
+    "@types/marked": "^5.0.2",
+    "@types/mocha": "^10.0.7",
+    "@types/node": "^22.13.14",
+    "@web/dev-server": "^0.4.6",
+    "@web/test-runner": "^0.18.2",
+    "@web/test-runner-puppeteer": "^0.18.0",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "^0.25.1",
+    "typescript": "^5.8.2"
+  },
+  "keywords": []
 }

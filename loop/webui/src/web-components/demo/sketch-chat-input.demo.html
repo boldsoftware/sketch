@@ -1,0 +1,32 @@
+<html>
+  <head>
+    <title>sketch-chat-input demo</title>
+    <link rel="stylesheet" href="demo.css" />
+    <script src="/dist/web-components/sketch-chat-input.js" type="module"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const chatInput = document.querySelector('sketch-chat-input');
+        console.log("chatInput: ", chatInput);
+        chatInput.content = "hi";
+        chatInput.addEventListener("send-chat", (evt) => {
+          console.log('send chat event: ', evt);
+          const msgDiv = document.querySelector("#chat-messages");
+          const newDiv = document.createElement("div");
+          newDiv.innerText = evt.detail.message; 
+          msgDiv.append(newDiv);
+          chatInput.content = '';
+        });
+      });
+    </script>
+
+  </head>
+  <body>
+    <h1>sketch-chat-input demo</h1>
+
+    <div id="chat-messages"></div>
+
+    <sketch-chat-input></sketch-chat-input>
+
+  </body>
+</html>

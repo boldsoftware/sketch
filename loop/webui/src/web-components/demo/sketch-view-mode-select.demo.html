@@ -1,0 +1,31 @@
+<html>
+  <head>
+    <title>sketch-view-mode-select demo</title>
+    <link rel="stylesheet" href="demo.css" />
+
+    <script src="/dist/web-components/sketch-view-mode-select.js" type="module"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const viewModeSelect = document.querySelector('sketch-view-mode-select');
+        const msgDiv = document.querySelector("#selected-mode");
+        msgDiv.innerText = `selected mode: ${viewModeSelect.activeMode}`;
+
+        console.log("viewModeSelect: ", viewModeSelect);
+        viewModeSelect.addEventListener("view-mode-select", (evt) => {
+          console.log('view mode change event: ', evt);
+          const msgDiv = document.querySelector("#selected-mode");
+          msgDiv.innerText = `selected mode: ${evt.detail.mode}`;
+        });
+      });
+  </script>
+
+  </head>
+  <body>
+    <h1>sketch-view-mode-select demo</h1>
+
+    <sketch-view-mode-select></sketch-view-mode-select>
+    <div id="selected-mode"></div>
+
+  </body>
+</html>

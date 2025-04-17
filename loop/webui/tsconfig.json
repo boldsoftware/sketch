@@ -4,6 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "node",
     "esModuleInterop": true,
+    "experimentalDecorators": true,
     "strict": false,
     "sourceMap": true,
     "outDir": "./dist",
@@ -12,6 +13,6 @@
     "skipLibCheck": true,
     "noImplicitAny": false
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "web-dev-server.config.mjs"],
   "exclude": ["node_modules", "dist"]
 }

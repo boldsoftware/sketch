@@ -1,0 +1,66 @@
+<html>
+  <head>
+    <title>sketch-timeline-message demo</title>
+    <link rel="stylesheet" href="demo.css" />
+    <script
+      src="/dist/web-components/sketch-timeline-message.js"
+      type="module"
+    ></script>
+
+    <script>
+      const messages = [
+        {
+          type: "agent",
+          content: "an agent message",
+        },
+        {
+          type: "user",
+          content: "a user message",
+        },
+        {
+          type: "tool",
+          content: "a tool use message",
+        },
+        {
+          type: "commit",
+          end_of_turn: false,
+          content: "",
+          commits: [
+            {
+              hash: "ece101c103ec231da87f4df05c1b5e6a24e13add",
+              subject: "Add README.md for web components directory",
+              body: "This adds documentation for the web components used in the Loop UI,\nincluding a description of each component, usage examples, and\ndevelopment guidelines.\n\nCo-Authored-By: sketch\nadd README.md for loop/webui/src/web-components",
+              pushed_branch:
+                "sketch/create-readmemd-for-web-components-directory",
+            },
+          ],
+          timestamp: "2025-04-14T16:39:33.639533919Z",
+          conversation_id: "",
+          idx: 17,
+        },
+        {
+          type: "agent",
+          content: "an end-of-turn agent message",
+          end_of_turn: true,
+        },
+      ];
+      document.addEventListener("DOMContentLoaded", () => {
+        messages.forEach((msg, idx) => {
+          const jsonEl = document.createElement("pre");
+          jsonEl.innerText = `.message property: ${JSON.stringify(msg)}`;
+          document.body.append(jsonEl);
+          const messageEl = document.createElement("sketch-timeline-message");
+          messageEl.message = msg;
+          document.body.appendChild(messageEl);
+        });
+        window.addEventListener(
+          "show-commit-diff",
+          (evt) => {console.log("show-commit-diff", evt)}
+        );
+      });
+    </script>
+  </head>
+  <body>
+    <h1>sketch-timeline-message demo</h1>
+  </body>
+</html>
