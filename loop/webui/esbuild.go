@@ -144,8 +144,11 @@ func Build() (fs.FS, error) {
 		return nil, err
 	}
 
-	// Do the build.
-	cmd := exec.Command("npm", "ci")
+	// Do the build. Don't install dev dependencies, because they can be large
+	// and slow enough to install that the /init requests from the host process
+	// will run out of retries and the whole thing exits. We do need better health
+	// checking in general, but that's a separate issue. Don't do slow stuff here:
+	cmd := exec.Command("npm", "ci", "--omit", "dev")
 	cmd.Dir = buildDir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("npm ci: %s: %v", out, err)
