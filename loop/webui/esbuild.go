@@ -14,19 +14,14 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
 	esbuildcli "github.com/evanw/esbuild/pkg/cli"
 )
 
-//go:generate npm ci
-
-// We only want to embed `node_modules`, but we instead as for `*` because
-// if it does not exist it means the developer has not run npm install yet.
-// We do not want a compile time error in that case right now.
-
-//go:embed *
+//go:embed package.json package-lock.json src tsconfig.json
 var embedded embed.FS
 
 func embeddedHash() (string, error) {
@@ -148,33 +143,21 @@ func Build() (fs.FS, error) {
 	if err := cleanBuildDir(buildDir); err != nil {
 		return nil, err
 	}
+
+	// Do the build.
+	cmd := exec.Command("npm", "ci")
+	cmd.Dir = buildDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("npm ci: %s: %v", out, err)
+	}
 	bundleTs := []string{"src/web-components/sketch-app-shell.ts"}
 	for _, tsName := range bundleTs {
-		if err := esbuildBundle(jsDir, filepath.Join(tmpDir, tsName), ""); err != nil {
+		if err := esbuildBundle(tmpHashDir, filepath.Join(buildDir, tsName), ""); err != nil {
 			return nil, fmt.Errorf("esbuild: %s: %w", tsName, err)
 		}
 	}
 
-	res := &memFS{
-		m: make(map[string][]byte),
-	}
-	// Copy all esbuild outputs into res
-	err = fs.WalkDir(os.DirFS(jsDir), ".", func(path string, d fs.DirEntry, err error) error {
-		if d.IsDir() {
-			return nil
-		}
-		b, err := os.ReadFile(filepath.Join(jsDir, path))
-		if err != nil {
-			return err
-		}
-		res.m[path] = b
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Copy all HTML, CSS, and JS files from src as well
+	// Copy src files used directly into the new hash output dir.
 	err = fs.WalkDir(embedded, "src", func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
 			return nil
@@ -184,9 +167,10 @@ func Build() (fs.FS, error) {
 			if err != nil {
 				return err
 			}
-			// Strip the "src" prefix from HTML and CSS files
-			destPath := strings.TrimPrefix(path, "src/")
-			res.m[destPath] = b
+			dstPath := filepath.Join(tmpHashDir, strings.TrimPrefix(path, "src/"))
+			if err := os.WriteFile(dstPath, b, 0o777); err != nil {
+				return err
+			}
 			return nil
 		}
 		return nil
@@ -196,8 +180,8 @@ func Build() (fs.FS, error) {
 	}
 
 	// Copy xterm.css from node_modules
-	xtermCssPath := "node_modules/@xterm/xterm/css/xterm.css"
-	xtermCss, err := embedded.ReadFile(xtermCssPath)
+	const xtermCssPath = "node_modules/@xterm/xterm/css/xterm.css"
+	xtermCss, err := os.ReadFile(filepath.Join(buildDir, xtermCssPath))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read xterm.css: %w", err)
 	}
@@ -220,7 +204,7 @@ func Build() (fs.FS, error) {
 	return zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
 }
 
-func esbuildBundle(outDir, src string, metafilePath string) error {
+func esbuildBundle(outDir, src, metafilePath string) error {
 	args := []string{
 		src,
 		"--bundle",
