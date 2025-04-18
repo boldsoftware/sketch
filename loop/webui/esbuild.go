@@ -143,6 +143,15 @@ func Build() (fs.FS, error) {
 	if err := cleanBuildDir(buildDir); err != nil {
 		return nil, err
 	}
+	tmpHashDir := filepath.Join(buildDir, "out")
+	if err := os.Mkdir(tmpHashDir, 0o777); err != nil {
+		return nil, err
+	}
+
+	// Unpack everything from embedded into build dir.
+	if err := unpackFS(buildDir, embedded); err != nil {
+		return nil, err
+	}
 
 	// Do the build. Don't install dev dependencies, because they can be large
 	// and slow enough to install that the /init requests from the host process
@@ -233,6 +242,33 @@ func esbuildBundle(outDir, src, metafilePath string) error {
 	return nil
 }
 
+// unpackTS unpacks all the typescript-relevant files from the embedded filesystem into tmpDir.
+func unpackTS(outDir string, embedded fs.FS) error {
+	return fs.WalkDir(embedded, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		tgt := filepath.Join(outDir, path)
+		if d.IsDir() {
+			if err := os.MkdirAll(tgt, 0o777); err != nil {
+				return err
+			}
+			return nil
+		}
+		if strings.HasSuffix(path, ".html") || strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".css") {
+			return nil
+		}
+		data, err := fs.ReadFile(embedded, path)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(tgt, data, 0o666); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 // GenerateBundleMetafile creates metafiles for bundle analysis with esbuild.
 //
 // The metafiles contain information about bundle size and dependencies
@@ -249,6 +285,15 @@ func GenerateBundleMetafile(outputDir string) (string, error) {
 
 	// Create output directory if it doesn't exist
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return "", err
+	}
+
+	cacheDir, _, err := zipPath()
+	if err != nil {
+		return "", err
+	}
+	buildDir := filepath.Join(cacheDir, "build")
+	if err := os.MkdirAll(buildDir, 0o777); err != nil { // make sure .cache/sketch/build exists
 		return "", err
 	}
 
@@ -275,7 +320,7 @@ func GenerateBundleMetafile(outputDir string) (string, error) {
 		}
 		defer os.RemoveAll(outTmpDir)
 
-		if err := esbuildBundle(outTmpDir, filepath.Join(tmpDir, tsName), metafilePath); err != nil {
+		if err := esbuildBundle(outTmpDir, filepath.Join(buildDir, tsName), metafilePath); err != nil {
 			return "", fmt.Errorf("failed to generate metafile for %s: %w", tsName, err)
 		}
 	}
