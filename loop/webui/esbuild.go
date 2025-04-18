@@ -160,6 +160,9 @@ func Build() (fs.FS, error) {
 	// Copy src files used directly into the new hash output dir.
 	err = fs.WalkDir(embedded, "src", func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
+			if path == "src/web-components/demo" {
+				return fs.SkipDir
+			}
 			return nil
 		}
 		if strings.HasSuffix(path, ".html") || strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".js") {
