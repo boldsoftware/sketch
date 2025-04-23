@@ -461,6 +461,28 @@ func (a *Agent) Init(ini AgentInit) error {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("git checkout %s: %s: %w", ini.Commit, out, err)
 		}
+
+		// Disable git hooks that might require unavailable commands (like branchless)
+		hooksDir := fmt.Sprintf("%s/.git/hooks", ini.WorkingDir)
+		if _, err := os.Stat(hooksDir); err == nil {
+			// Rename hooks directory to disable all hooks
+			backupDir := fmt.Sprintf("%s/.git/hooks.backup", ini.WorkingDir)
+			if err := os.Rename(hooksDir, backupDir); err != nil {
+				slog.WarnContext(ctx, "failed to rename git hooks directory",
+					slog.String("error", err.Error()))
+				// If we can't rename the directory, try to remove specific problematic hooks
+				for _, hook := range []string{"reference-transaction", "post-checkout", "post-commit"} {
+					hookPath := fmt.Sprintf("%s/%s", hooksDir, hook)
+					if _, err := os.Stat(hookPath); err == nil {
+						os.Remove(hookPath)
+					}
+				}
+			} else {
+				// Create an empty hooks directory
+				os.Mkdir(hooksDir, 0755)
+			}
+		}
+
 		a.lastHEAD = ini.Commit
 		a.gitRemoteAddr = ini.GitRemoteAddr
 		a.initialCommit = ini.Commit
