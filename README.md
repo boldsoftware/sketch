@@ -31,6 +31,8 @@ Join if you want! https://discord.gg/R82YagTASx
 
 ## Development
 
+[![Go Reference](https://pkg.go.dev/badge/sketch.dev.svg)](https://pkg.go.dev/sketch.dev)
+
 See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Open Source
