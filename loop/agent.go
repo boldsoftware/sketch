@@ -18,6 +18,7 @@ import (
 	"text/template"
 	"time"
 
+	"sketch.dev/claudetool/browse"
 	"sketch.dev/browser"
 	"sketch.dev/claudetool"
 	"sketch.dev/claudetool/bashkit"
@@ -843,11 +844,27 @@ func (a *Agent) initConvo() *conversation.Convo {
 	// Register all tools with the conversation
 	// When adding, removing, or modifying tools here, double-check that the termui tool display
 	// template in termui/termui.go has pretty-printing support for all tools.
+
+	var browserTools []*llm.Tool
+	// Add browser tools if enabled
+	// if experiment.Enabled("browser") {
+	if true {
+		bTools, browserCleanup := browse.RegisterBrowserTools(a.config.Context)
+		// Add cleanup function to context cancel
+		go func() {
+			<-a.config.Context.Done()
+			browserCleanup()
+		}()
+		browserTools = bTools
+	}
+
 	convo.Tools = []*llm.Tool{
 		bashTool, claudetool.Keyword,
 		claudetool.Think, a.preCommitTool(), makeDoneTool(a.codereview, a.config.GitUsername, a.config.GitEmail),
 		a.codereview.Tool(), a.multipleChoiceTool(),
 	}
+
+	convo.Tools = append(convo.Tools, browserTools...)
 	if a.config.UseAnthropicEdit {
 		convo.Tools = append(convo.Tools, claudetool.AnthropicEditTool)
 	} else {

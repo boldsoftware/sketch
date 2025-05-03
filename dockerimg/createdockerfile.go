@@ -65,12 +65,10 @@ RUN printf '%s\n' \
 
 RUN apt-get update; \
 	apt-get install -y --no-install-recommends \
-		git jq sqlite3 npm nodejs gh ripgrep fzf python3 curl vim && \
+		git jq sqlite3 npm nodejs gh ripgrep fzf python3 curl vim chromium && \
 	apt-get clean && \
-	rm -rf /var/lib/apt/lists/*
-
-# Strip out docs from debian.
-RUN rm -rf /usr/share/{doc,doc-base,info,lintian,man,groff,locale,zoneinfo}/*
+	rm -rf /var/lib/apt/lists/* && \
+	rm -rf /usr/share/{doc,doc-base,info,lintian,man,groff,locale,zoneinfo}/*
 
 ENV PATH="$GOPATH/bin:$PATH"
 

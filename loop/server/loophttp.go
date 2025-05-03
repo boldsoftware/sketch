@@ -23,6 +23,7 @@ import (
 	"sketch.dev/loop/server/gzhandler"
 
 	"github.com/creack/pty"
+	"sketch.dev/claudetool/browse"
 	"sketch.dev/llm/conversation"
 	"sketch.dev/loop"
 	"sketch.dev/webui"
@@ -520,6 +521,43 @@ func New(agent loop.CodingAgent, logFile *os.File) (*Server, error) {
 		// Return success response
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"prompt": suggestedPrompt})
+	})
+
+	// Handler for /screenshot/{id} - serves screenshot images
+	s.mux.HandleFunc("/screenshot/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Extract the screenshot ID from the path
+		pathParts := strings.Split(r.URL.Path, "/")
+		if len(pathParts) < 3 {
+			http.Error(w, "Invalid screenshot ID", http.StatusBadRequest)
+			return
+		}
+
+		screenshotID := pathParts[2]
+
+		// Validate the ID format (prevent directory traversal)
+		if strings.Contains(screenshotID, "/") || strings.Contains(screenshotID, "\\") {
+			http.Error(w, "Invalid screenshot ID format", http.StatusBadRequest)
+			return
+		}
+
+		// Get the screenshot file path
+		filePath := browse.GetScreenshotPath(screenshotID)
+
+		// Check if the file exists
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			http.Error(w, "Screenshot not found", http.StatusNotFound)
+			return
+		}
+
+		// Serve the file
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "max-age=3600") // Cache for an hour
+		http.ServeFile(w, r, filePath)
 	})
 
 	// Handler for POST /chat
