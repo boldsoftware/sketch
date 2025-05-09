@@ -741,8 +741,12 @@ type AgentInit struct {
 }
 
 func (a *Agent) Init(ini AgentInit) error {
+	// If already initialized, just log and return success (make Init idempotent)
 	if a.convo != nil {
-		return fmt.Errorf("Agent.Init: already initialized")
+		slog.InfoContext(a.config.Context, "Agent already initialized, skipping initialization",
+			slog.String("workingDir", ini.WorkingDir),
+			slog.Bool("inDocker", ini.InDocker))
+		return nil
 	}
 	ctx := a.config.Context
 	if ini.InDocker {
