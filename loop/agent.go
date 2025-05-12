@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -803,8 +804,27 @@ func (a *Agent) Init(ini AgentInit) error {
 		}
 		cmd = exec.CommandContext(ctx, "git", "checkout", "-f", ini.Commit)
 		cmd.Dir = ini.WorkingDir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("git checkout %s: %s: %w", ini.Commit, out, err)
+		if checkoutOut, err := cmd.CombinedOutput(); err != nil {
+			// Remove git hooks if they exist and retry
+			// Only try removing hooks if we haven't already removed them during fetch
+			hookPath := filepath.Join(ini.WorkingDir, ".git", "hooks")
+			if _, statErr := os.Stat(hookPath); statErr == nil {
+				slog.WarnContext(ctx, "git checkout failed, removing hooks and retrying",
+					slog.String("error", err.Error()),
+					slog.String("output", string(checkoutOut)))
+				if removeErr := removeGitHooks(ctx, ini.WorkingDir); removeErr != nil {
+					slog.WarnContext(ctx, "failed to remove git hooks", slog.String("error", removeErr.Error()))
+				}
+
+				// Retry the checkout operation
+				cmd = exec.CommandContext(ctx, "git", "checkout", "-f", ini.Commit)
+				cmd.Dir = ini.WorkingDir
+				if retryOut, retryErr := cmd.CombinedOutput(); retryErr != nil {
+					return fmt.Errorf("git checkout %s failed even after removing hooks: %s: %w", ini.Commit, retryOut, retryErr)
+				}
+			} else {
+				return fmt.Errorf("git checkout %s: %s: %w", ini.Commit, checkoutOut, err)
+			}
 		}
 		a.lastHEAD = ini.Commit
 		a.gitRemoteAddr = ini.GitRemoteAddr
@@ -1511,6 +1531,31 @@ func (a *Agent) Diff(commit *string) (string, error) {
 // InitialCommit returns the Git commit hash that was saved when the agent was instantiated.
 func (a *Agent) InitialCommit() string {
 	return a.initialCommit
+}
+
+// removeGitHooks removes the Git hooks directory from the repository
+func removeGitHooks(_ context.Context, repoPath string) error {
+	hooksDir := filepath.Join(repoPath, ".git", "hooks")
+
+	// Check if hooks directory exists
+	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
+		// Directory doesn't exist, nothing to do
+		return nil
+	}
+
+	// Remove the hooks directory
+	err := os.RemoveAll(hooksDir)
+	if err != nil {
+		return fmt.Errorf("failed to remove git hooks directory: %w", err)
+	}
+
+	// Create an empty hooks directory to prevent git from recreating default hooks
+	err = os.MkdirAll(hooksDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create empty git hooks directory: %w", err)
+	}
+
+	return nil
 }
 
 // handleGitCommits() highlights new commits to the user. When running
