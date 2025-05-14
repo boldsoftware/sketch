@@ -65,7 +65,7 @@ RUN printf '%s\n' \
 
 RUN apt-get update; \
 	apt-get install -y --no-install-recommends \
-		git jq sqlite3 npm nodejs gh ripgrep fzf python3 curl vim chromium && \
+		git jq sqlite3 npm nodejs gh ripgrep fzf python3 curl vim chromium lsof iproute2 && \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists/* && \
 	rm -rf /usr/share/{doc,doc-base,info,lintian,man,groff,locale,zoneinfo}/*
