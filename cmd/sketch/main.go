@@ -175,10 +175,11 @@ type CLIFlags struct {
 func parseCLIFlags() CLIFlags {
 	var flags CLIFlags
 
+	openBrowserDefault := os.Getenv("SSH_CONNECTION") == ""
 	flag.StringVar(&flags.addr, "addr", "localhost:0", "local debug HTTP server address")
 	flag.StringVar(&flags.skabandAddr, "skaband-addr", "https://sketch.dev", "URL of the skaband server")
 	flag.BoolVar(&flags.unsafe, "unsafe", false, "run directly without a docker container")
-	flag.BoolVar(&flags.openBrowser, "open", true, "open sketch URL in system browser")
+	flag.BoolVar(&flags.openBrowser, "open", openBrowserDefault, "open sketch URL in system browser; on by default except if -one-shot is used or a ssh connection is detected")
 	flag.StringVar(&flags.httprrFile, "httprr", "", "if set, record HTTP interactions to file")
 	flag.Uint64Var(&flags.maxIterations, "max-iterations", 0, "maximum number of iterations the agent should perform per turn, 0 to disable limit")
 	flag.DurationVar(&flags.maxWallTime, "max-wall-time", 0, "maximum time the agent should run per turn, 0 to disable limit")
