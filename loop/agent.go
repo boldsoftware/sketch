@@ -1478,12 +1478,12 @@ func (a *Agent) continueTurnWithToolResults(ctx context.Context, results []llm.C
 func (a *Agent) overBudget(ctx context.Context) error {
 	if err := a.convo.OverBudget(); err != nil {
 		a.stateMachine.Transition(ctx, StateBudgetExceeded, "Budget exceeded: "+err.Error())
-		m := budgetMessage(err)
-		m.Content = m.Content + "\n\nBudget reset."
-		a.pushToOutbox(ctx, budgetMessage(err))
-		a.convo.ResetBudget(a.originalBudget)
-		return err
-	}
+               m := budgetMessage(err)
+               m.Content = m.Content + "\n\nBudget reset."
+               a.pushToOutbox(ctx, m)
+               a.convo.ResetBudget(a.originalBudget)
+               return err
+       }
 	return nil
 }
 
