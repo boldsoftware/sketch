@@ -63,7 +63,7 @@ starting a server to test something. Be sure to kill the process group when done
     },
     "timeout": {
       "type": "string",
-      "description": "Timeout as a Go duration string, defaults to 10s if background is false; 10m if background is true"
+      "description": "Timeout as a Go duration string, defaults to 40s if background is false; 10m if background is true"
     },
     "background": {
       "type": "boolean",
@@ -98,7 +98,7 @@ func (i *bashInput) timeout() time.Duration {
 	if i.Background {
 		return 10 * time.Minute
 	} else {
-		return 10 * time.Second
+		return 40 * time.Second
 	}
 }
 

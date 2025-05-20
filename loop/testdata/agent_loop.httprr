@@ -40,7 +40,7 @@ Content-Type: application/json
      },
      "timeout": {
       "type": "string",
-      "description": "Timeout as a Go duration string, defaults to 10s if background is false; 10m if background is true"
+      "description": "Timeout as a Go duration string, defaults to 40s if background is false; 10m if background is true"
      },
      "background": {
       "type": "boolean",
