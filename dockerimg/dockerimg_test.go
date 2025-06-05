@@ -258,3 +258,191 @@ func TestGetHostGoCacheDirs(t *testing.T) {
 		t.Errorf("GOMODCACHE is not an absolute path: %s", goModCacheDir)
 	}
 }
+
+func TestPrioritizeDockerfiles(t *testing.T) {
+	tests := []struct {
+		name       string
+		candidates []string
+		want       string
+	}{
+		{
+			name:       "empty list",
+			candidates: []string{},
+			want:       "",
+		},
+		{
+			name:       "single dockerfile",
+			candidates: []string{"/path/to/Dockerfile"},
+			want:       "/path/to/Dockerfile",
+		},
+		{
+			name:       "dockerfile.sketch preferred over dockerfile",
+			candidates: []string{"/path/to/Dockerfile", "/path/to/Dockerfile.sketch"},
+			want:       "/path/to/Dockerfile.sketch",
+		},
+		{
+			name:       "dockerfile.sketch preferred regardless of order",
+			candidates: []string{"/path/to/Dockerfile.dev", "/path/to/Dockerfile", "/path/to/Dockerfile.sketch"},
+			want:       "/path/to/Dockerfile.sketch",
+		},
+		{
+			name:       "dockerfile preferred over other variations",
+			candidates: []string{"/path/to/Dockerfile.dev", "/path/to/Dockerfile", "/path/to/Dockerfile.prod"},
+			want:       "/path/to/Dockerfile",
+		},
+		{
+			name:       "case insensitive dockerfile.sketch",
+			candidates: []string{"/path/to/dockerfile", "/path/to/dockerfile.sketch"},
+			want:       "/path/to/dockerfile.sketch",
+		},
+		{
+			name:       "case insensitive dockerfile",
+			candidates: []string{"/path/to/dockerfile.dev", "/path/to/dockerfile"},
+			want:       "/path/to/dockerfile",
+		},
+		{
+			name:       "first candidate when no priority matches",
+			candidates: []string{"/path/to/Dockerfile.dev", "/path/to/Dockerfile.prod"},
+			want:       "/path/to/Dockerfile.dev",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := prioritizeDockerfiles(tt.candidates)
+			if got != tt.want {
+				t.Errorf("prioritizeDockerfiles() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindDirDockerfilesIntegration(t *testing.T) {
+	// Create a temporary directory structure for testing
+	tmpDir, err := os.MkdirTemp("", "dockerfiles-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create test files
+	testFiles := []string{
+		"Dockerfile",
+		"Dockerfile.sketch",
+		"Dockerfile.dev",
+		"dockerfile.prod", // lowercase
+		"README.md",       // should be ignored
+	}
+
+	for _, file := range testFiles {
+		path := filepath.Join(tmpDir, file)
+		if err := os.WriteFile(path, []byte("# test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Test findDirDockerfiles
+	candidates, err := findDirDockerfiles(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should find all Dockerfile* files but not README.md
+	expectedCount := 4
+	if len(candidates) != expectedCount {
+		t.Errorf("findDirDockerfiles() found %d files, want %d", len(candidates), expectedCount)
+	}
+
+	// Test prioritization
+	prioritized := prioritizeDockerfiles(candidates)
+	expectedPriority := filepath.Join(tmpDir, "Dockerfile.sketch")
+	if prioritized != expectedPriority {
+		t.Errorf("prioritizeDockerfiles() = %v, want %v", prioritized, expectedPriority)
+	}
+
+	// Test with only Dockerfile (no Dockerfile.sketch)
+	os.Remove(filepath.Join(tmpDir, "Dockerfile.sketch"))
+	candidates, err = findDirDockerfiles(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prioritized = prioritizeDockerfiles(candidates)
+	expectedPriority = filepath.Join(tmpDir, "Dockerfile")
+	if prioritized != expectedPriority {
+		t.Errorf("prioritizeDockerfiles() without sketch = %v, want %v", prioritized, expectedPriority)
+	}
+}
+
+func TestFindRepoDockerfiles(t *testing.T) {
+	// Create a temporary directory structure that simulates a git repo
+	tmpDir, err := os.MkdirTemp("", "repo-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create subdirectories
+	subDir := filepath.Join(tmpDir, "subdir")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create Dockerfile in subdirectory
+	subDockerfile := filepath.Join(subDir, "Dockerfile")
+	if err := os.WriteFile(subDockerfile, []byte("FROM ubuntu"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create Dockerfile.sketch in parent directory
+	rootSketchDockerfile := filepath.Join(tmpDir, "Dockerfile.sketch")
+	if err := os.WriteFile(rootSketchDockerfile, []byte("FROM alpine"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test: when called from subdirectory, should find subdirectory Dockerfile first
+	candidates, err := findRepoDockerfiles(subDir, tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(candidates) == 0 {
+		t.Fatal("expected to find at least one dockerfile")
+	}
+
+	// Should find the Dockerfile in the subdirectory
+	if len(candidates) != 1 || candidates[0] != subDockerfile {
+		t.Errorf("expected to find %s, but got %v", subDockerfile, candidates)
+	}
+
+	// Test: when called from root with no subdirectory dockerfile, should find root dockerfile
+	os.Remove(subDockerfile) // Remove subdirectory dockerfile
+	candidates, err = findRepoDockerfiles(tmpDir, tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(candidates) != 1 || candidates[0] != rootSketchDockerfile {
+		t.Errorf("expected to find %s, but got %v", rootSketchDockerfile, candidates)
+	}
+
+	// Test prioritization: create both Dockerfile and Dockerfile.sketch in same directory
+	rootDockerfile := filepath.Join(tmpDir, "Dockerfile")
+	if err := os.WriteFile(rootDockerfile, []byte("FROM debian"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	candidates, err = findRepoDockerfiles(tmpDir, tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(candidates) != 2 {
+		t.Errorf("expected to find 2 dockerfiles, but got %d", len(candidates))
+	}
+
+	// Test that prioritization works correctly
+	prioritized := prioritizeDockerfiles(candidates)
+	if prioritized != rootSketchDockerfile {
+		t.Errorf("expected Dockerfile.sketch to be prioritized, but got %s", prioritized)
+	}
+}

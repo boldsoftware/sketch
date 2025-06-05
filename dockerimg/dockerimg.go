@@ -762,14 +762,14 @@ func findOrBuildDockerImage(ctx context.Context, cwd, gitRoot, model, modelURL, 
 	var dockerfilePath string
 	var generatedDockerfile string
 
-	// TODO: prefer a "Dockerfile.sketch" so users can tailor any env to this tool.
-	if len(candidates) == 1 && strings.ToLower(filepath.Base(candidates[0])) == "dockerfile" {
-		dockerfilePath = candidates[0]
+	// Prioritize Dockerfile.sketch over Dockerfile, then fall back to generated dockerfile
+	if len(candidates) > 0 {
+		dockerfilePath = prioritizeDockerfiles(candidates)
 		contents, err := os.ReadFile(dockerfilePath)
 		if err != nil {
 			return "", err
 		}
-		fmt.Printf("using %s as dev env\n", candidates[0])
+		fmt.Printf("using %s as dev env\n", dockerfilePath)
 		if hashInitFiles(map[string]string{dockerfilePath: string(contents)}) == curImgInitFilesHash && !forceRebuild {
 			return imgName, nil
 		}
@@ -889,6 +889,36 @@ func findRepoDockerfiles(cwd, gitRoot string) ([]string, error) {
 		}
 	}
 	return files, nil
+}
+
+// prioritizeDockerfiles returns the highest priority dockerfile from a list of candidates.
+// Priority order: Dockerfile.sketch > Dockerfile > other Dockerfile.*
+func prioritizeDockerfiles(candidates []string) string {
+	if len(candidates) == 0 {
+		return ""
+	}
+	if len(candidates) == 1 {
+		return candidates[0]
+	}
+
+	// Look for Dockerfile.sketch first (case insensitive)
+	for _, candidate := range candidates {
+		basename := strings.ToLower(filepath.Base(candidate))
+		if basename == "dockerfile.sketch" {
+			return candidate
+		}
+	}
+
+	// Look for Dockerfile second (case insensitive)
+	for _, candidate := range candidates {
+		basename := strings.ToLower(filepath.Base(candidate))
+		if basename == "dockerfile" {
+			return candidate
+		}
+	}
+
+	// Return first remaining candidate
+	return candidates[0]
 }
 
 // findDirDockerfiles finds all "Dockerfile*" files in a directory.
