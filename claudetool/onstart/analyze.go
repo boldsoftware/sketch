@@ -3,6 +3,7 @@ package onstart
 
 import (
 	"bufio"
+	"bytes"
 	"cmp"
 	"context"
 	"fmt"
@@ -41,7 +42,7 @@ func AnalyzeCodebase(ctx context.Context, repoPath string) (*Codebase, error) {
 	// TODO: do a filesystem walk instead?
 	// There's a balance: git ls-files skips node_modules etc,
 	// but some guidance files might be locally .gitignored.
-	cmd := exec.Command("git", "ls-files")
+	cmd := exec.Command("git", "ls-files", "-z")
 	cmd.Dir = repoPath
 
 	r, w := io.Pipe() // stream and scan rather than buffer
@@ -66,6 +67,7 @@ func AnalyzeCodebase(ctx context.Context, repoPath string) (*Codebase, error) {
 		defer r.Close()
 
 		scanner := bufio.NewScanner(r)
+		scanner.Split(scanZero)
 		for scanner.Scan() {
 			file := scanner.Text()
 			file = strings.TrimSpace(file)
@@ -207,4 +209,20 @@ func (c *Codebase) TopExtensions() []string {
 	}
 
 	return result
+}
+
+func scanZero(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	if i := bytes.IndexByte(data, 0); i >= 0 {
+		// We have a full NUL line.
+		return i + 1, data[0:i], nil
+	}
+	// If we're at EOF, we have a final, non-terminated line. Return it.
+	if atEOF {
+		return len(data), data, nil
+	}
+	// Request more data.
+	return 0, nil, nil
 }
