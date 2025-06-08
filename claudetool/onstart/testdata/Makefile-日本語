@@ -1,0 +1,10 @@
+# Makefile with Japanese characters in filename
+# This should be categorized as a build file
+
+all:
+	echo "Building with Japanese characters in Makefile name"
+
+clean:
+	rm -f *.o
+
+.PHONY: all clean
