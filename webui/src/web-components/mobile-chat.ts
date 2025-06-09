@@ -70,6 +70,12 @@ export class MobileChat extends LitElement {
       border-bottom-left-radius: 6px;
     }
 
+    .message.error .message-bubble {
+      background-color: #ffebee;
+      color: #d32f2f;
+      border-radius: 18px;
+    }
+
     .thinking-message {
       align-self: flex-start;
       align-items: flex-start;
@@ -265,6 +271,9 @@ export class MobileChat extends LitElement {
   private getMessageRole(message: AgentMessage): string {
     if (message.type === "user") {
       return "user";
+    }
+    if (message.type === "error") {
+      return "error";
     }
     return "assistant";
   }
