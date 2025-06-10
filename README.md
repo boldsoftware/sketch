@@ -23,6 +23,27 @@ Sketch helps with most programming environments, but Sketch has extra goodies fo
 
 <img src="https://storage.googleapis.com/sketch-assets/screenshot.jpg" alt="Sketch Screenshot" width="800"/>
 
+## 🎨 The Sketch Poem
+
+```
+In terminals dark and containers bright,
+An agent works through day and night.
+With Docker's embrace and Git's gentle flow,
+It draws the owl and makes code grow.
+
+From repos vast to branches new,
+It sketches dreams and makes them true.
+With tools in hand and wisdom deep,
+It guards your code while you can sleep.
+
+So call upon this coding friend,
+When features need to build and mend.
+For Sketch will draw what you conceive,
+And in your git history, always leave
+A testament to work well done—
+The owl has drawn, the code has won.
+```
+
 ## 📋 Quick Start
 
 ```sh
