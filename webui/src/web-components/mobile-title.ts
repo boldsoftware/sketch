@@ -13,6 +13,9 @@ export class MobileTitle extends LitElement {
   @property({ type: String })
   skabandAddr?: string;
 
+  @property({ type: String })
+  slug?: string;
+
   static styles = css`
     :host {
       display: block;
@@ -25,6 +28,11 @@ export class MobileTitle extends LitElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
+    }
+
+    .title-group {
+      display: flex;
+      flex-direction: column;
     }
 
     .title {
@@ -52,6 +60,18 @@ export class MobileTitle extends LitElement {
       width: 18px;
       height: 18px;
       border-radius: 3px;
+    }
+
+    .slug-title {
+      margin: 0;
+      padding: 0;
+      color: rgba(82, 82, 82, 0.85);
+      font-size: 14px;
+      font-weight: normal;
+      font-style: italic;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .status-indicator {
@@ -150,18 +170,21 @@ export class MobileTitle extends LitElement {
   render() {
     return html`
       <div class="title-container">
-        <h1 class="title">
-          ${this.skabandAddr
-            ? html`<a
-                href="${this.skabandAddr}"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <img src="${this.skabandAddr}/sketch.dev.png" alt="sketch" />
-                Sketch
-              </a>`
-            : html`Sketch`}
-        </h1>
+        <div class="title-group">
+          <h1 class="title">
+            ${this.skabandAddr
+              ? html`<a
+                  href="${this.skabandAddr}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img src="${this.skabandAddr}/sketch.dev.png" alt="sketch" />
+                  Sketch
+                </a>`
+              : html`Sketch`}
+          </h1>
+          <h2 class="slug-title">${this.slug}</h2>
+        </div>
 
         <div class="status-indicator">
           ${this.isThinking
