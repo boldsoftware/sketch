@@ -4,9 +4,47 @@ import { createRef, Ref, ref } from "lit/directives/ref.js";
 
 // See https://rodydavis.com/posts/lit-monaco-editor for some ideas.
 
-import * as monaco from "monaco-editor";
+// Monaco is loaded dynamically - see loadMonaco() function
+declare global {
+  interface Window {
+    monaco?: any;
+  }
+}
 
-// Configure Monaco to use local workers with correct relative paths
+// Monaco hash will be injected at build time
+declare const __MONACO_HASH__: string;
+
+// Load Monaco editor dynamically
+let monacoLoadPromise: Promise<any> | null = null;
+
+function loadMonaco(): Promise<any> {
+  if (monacoLoadPromise) {
+    return monacoLoadPromise;
+  }
+
+  if (window.monaco) {
+    return Promise.resolve(window.monaco);
+  }
+
+  monacoLoadPromise = new Promise((resolve, reject) => {
+    const monacoHash = (typeof __MONACO_HASH__ !== 'undefined') ? __MONACO_HASH__ : 'dev';
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.onload = () => {
+      // The Monaco bundle should set window.monaco
+      if (window.monaco) {
+        resolve(window.monaco);
+      } else {
+        reject(new Error('Monaco not loaded'));
+      }
+    };
+    script.onerror = reject;
+    script.src = `./monaco-standalone-${monacoHash}.js`;
+    document.head.appendChild(script);
+  });
+
+  return monacoLoadPromise;
+}
 
 // Define Monaco CSS styles as a string constant
 const monacoStyles = `
@@ -89,7 +127,7 @@ export class CodeDiffEditor extends LitElement {
   @property({ type: Boolean, attribute: "editable-right" })
   editableRight?: boolean;
   private container: Ref<HTMLElement> = createRef();
-  editor?: monaco.editor.IStandaloneDiffEditor;
+  editor?: any; // monaco.editor.IStandaloneDiffEditor
 
   // Save state properties
   @state() private saveState: "idle" | "modified" | "saving" | "saved" = "idle";
@@ -174,6 +212,9 @@ export class CodeDiffEditor extends LitElement {
     const modifiedEditor = this.editor.getModifiedEditor();
     if (!modifiedEditor) return;
 
+    const monaco = window.monaco;
+    if (!monaco) return;
+    
     modifiedEditor.addCommand(
       monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
       () => {
@@ -598,7 +639,7 @@ export class CodeDiffEditor extends LitElement {
   /**
    * Update editor options
    */
-  setOptions(value: monaco.editor.IDiffEditorConstructionOptions) {
+  setOptions(value: any) { // monaco.editor.IDiffEditorConstructionOptions
     if (this.editor) {
       this.editor.updateOptions(value);
       // Re-fit content after options change
@@ -629,11 +670,14 @@ export class CodeDiffEditor extends LitElement {
   }
 
   // Models for the editor
-  private originalModel?: monaco.editor.ITextModel;
-  private modifiedModel?: monaco.editor.ITextModel;
+  private originalModel?: any; // monaco.editor.ITextModel
+  private modifiedModel?: any; // monaco.editor.ITextModel
 
-  private initializeEditor() {
+  private async initializeEditor() {
     try {
+      // Load Monaco dynamically
+      const monaco = await loadMonaco();
+      
       // Disable semantic validation globally for TypeScript/JavaScript if available
       if (monaco.languages && monaco.languages.typescript) {
         monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
@@ -820,8 +864,8 @@ export class CodeDiffEditor extends LitElement {
    * Handle selection change events from either editor
    */
   private handleSelectionChange(
-    e: monaco.editor.ICursorSelectionChangedEvent,
-    editor: monaco.editor.IStandaloneCodeEditor,
+    e: any, // monaco.editor.ICursorSelectionChangedEvent
+    editor: any, // monaco.editor.IStandaloneCodeEditor
     editorType: "original" | "modified",
   ) {
     try {
@@ -1129,7 +1173,7 @@ export class CodeDiffEditor extends LitElement {
     }
   }
 
-  updated(changedProperties: Map<string, any>) {
+  async updated(changedProperties: Map<string, any>) {
     // If any relevant properties changed, just update the models
     if (
       changedProperties.has("originalCode") ||
@@ -1151,7 +1195,7 @@ export class CodeDiffEditor extends LitElement {
       } else {
         // If the editor isn't initialized yet but we received content,
         // initialize it now
-        this.initializeEditor();
+        await this.initializeEditor();
       }
     }
   }
@@ -1253,9 +1297,9 @@ export class CodeDiffEditor extends LitElement {
   }
 
   // Add resize observer to ensure editor resizes when container changes
-  firstUpdated() {
+  async firstUpdated() {
     // Initialize the editor
-    this.initializeEditor();
+    await this.initializeEditor();
 
     // Set up window resize handler to ensure Monaco editor adapts to browser window changes
     this.setupWindowResizeHandler();

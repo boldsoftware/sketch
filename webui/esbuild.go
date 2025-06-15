@@ -221,10 +221,18 @@ func Build() (fs.FS, error) {
 	}
 	_ = monacoHash // We created it for caching benefits, but don't use it yet
 
-	// Bundle all files normally
+	// Bundle files - Monaco view with external Monaco, others normally
 	for _, tsName := range bundleTs {
-		if err := esbuildBundle(tmpHashDir, filepath.Join(buildDir, tsName), ""); err != nil {
-			return nil, fmt.Errorf("esbuild: %s: %w", tsName, err)
+		if strings.Contains(tsName, "sketch-monaco-view.ts") {
+			// Bundle Monaco view with Monaco as external
+			if err := esbuildBundleWithExternal(tmpHashDir, filepath.Join(buildDir, tsName), monacoHash); err != nil {
+				return nil, fmt.Errorf("esbuild monaco view: %s: %w", tsName, err)
+			}
+		} else {
+			// Bundle normally
+			if err := esbuildBundle(tmpHashDir, filepath.Join(buildDir, tsName), ""); err != nil {
+				return nil, fmt.Errorf("esbuild: %s: %w", tsName, err)
+			}
 		}
 	}
 
@@ -458,8 +466,9 @@ func GenerateBundleMetafile(outputDir string) (string, error) {
 // createStandaloneMonacoBundle creates a separate Monaco editor bundle with content-based hash
 // This is useful for caching Monaco separately from the main application bundles
 func createStandaloneMonacoBundle(outDir, buildDir string) (string, error) {
-	// Create a temporary entry file that imports Monaco
+	// Create a temporary entry file that imports Monaco and exposes it globally
 	monacoEntryContent := `import * as monaco from 'monaco-editor';
+window.monaco = monaco;
 export default monaco;
 `
 	monacoEntryPath := filepath.Join(buildDir, "monaco-standalone-entry.js")
@@ -489,7 +498,8 @@ export default monaco;
 		"--minify",
 		"--log-level=error",
 		"--outfile=" + monacoOutputPath,
-		"--format=esm",
+		"--format=iife",
+		"--global-name=__MonacoLoader__",
 		"--loader:.ttf=file",
 		"--loader:.eot=file",
 		"--loader:.woff=file",
@@ -503,4 +513,29 @@ export default monaco;
 	}
 
 	return monacoHash, nil
+}
+
+// esbuildBundleWithExternal bundles a file with Monaco as external dependency
+func esbuildBundleWithExternal(outDir, src, monacoHash string) error {
+	args := []string{
+		src,
+		"--bundle",
+		"--sourcemap",
+		"--minify",
+		"--log-level=error",
+		"--outdir=" + outDir,
+		"--external:monaco-editor",
+		"--loader:.ttf=file",
+		"--loader:.eot=file",
+		"--loader:.woff=file",
+		"--loader:.woff2=file",
+		"--public-path=.",
+		"--define:__MONACO_HASH__='" + monacoHash + "'",
+	}
+
+	ret := esbuildcli.Run(args)
+	if ret != 0 {
+		return fmt.Errorf("esbuild %s failed: %d", filepath.Base(src), ret)
+	}
+	return nil
 }
