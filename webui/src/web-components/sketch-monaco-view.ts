@@ -4,10 +4,13 @@ import { createRef, Ref, ref } from "lit/directives/ref.js";
 
 // See https://rodydavis.com/posts/lit-monaco-editor for some ideas.
 
+// Monaco types for proper TypeScript support
+import type * as monaco from "monaco-editor";
+
 // Monaco is loaded dynamically - see loadMonaco() function
 declare global {
   interface Window {
-    monaco?: any;
+    monaco?: typeof monaco;
   }
 }
 
@@ -17,7 +20,7 @@ declare const __MONACO_HASH__: string;
 // Load Monaco editor dynamically
 let monacoLoadPromise: Promise<any> | null = null;
 
-function loadMonaco(): Promise<any> {
+function loadMonaco(): Promise<typeof monaco> {
   if (monacoLoadPromise) {
     return monacoLoadPromise;
   }
@@ -127,7 +130,7 @@ export class CodeDiffEditor extends LitElement {
   @property({ type: Boolean, attribute: "editable-right" })
   editableRight?: boolean;
   private container: Ref<HTMLElement> = createRef();
-  editor?: any; // monaco.editor.IStandaloneDiffEditor
+  editor?: monaco.editor.IStandaloneDiffEditor;
 
   // Save state properties
   @state() private saveState: "idle" | "modified" | "saving" | "saved" = "idle";
@@ -639,7 +642,7 @@ export class CodeDiffEditor extends LitElement {
   /**
    * Update editor options
    */
-  setOptions(value: any) { // monaco.editor.IDiffEditorConstructionOptions
+  setOptions(value: monaco.editor.IDiffEditorConstructionOptions) {
     if (this.editor) {
       this.editor.updateOptions(value);
       // Re-fit content after options change
@@ -670,8 +673,8 @@ export class CodeDiffEditor extends LitElement {
   }
 
   // Models for the editor
-  private originalModel?: any; // monaco.editor.ITextModel
-  private modifiedModel?: any; // monaco.editor.ITextModel
+  private originalModel?: monaco.editor.ITextModel;
+  private modifiedModel?: monaco.editor.ITextModel;
 
   private async initializeEditor() {
     try {
@@ -864,8 +867,8 @@ export class CodeDiffEditor extends LitElement {
    * Handle selection change events from either editor
    */
   private handleSelectionChange(
-    e: any, // monaco.editor.ICursorSelectionChangedEvent
-    editor: any, // monaco.editor.IStandaloneCodeEditor
+    e: monaco.editor.ICursorSelectionChangedEvent,
+    editor: monaco.editor.IStandaloneCodeEditor,
     editorType: "original" | "modified",
   ) {
     try {
