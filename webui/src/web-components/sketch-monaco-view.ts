@@ -30,18 +30,29 @@ function loadMonaco(): Promise<typeof monaco> {
   }
 
   monacoLoadPromise = new Promise((resolve, reject) => {
-    const monacoHash = (typeof __MONACO_HASH__ !== 'undefined') ? __MONACO_HASH__ : 'dev';
+    let monacoHash: string;
+    try {
+      monacoHash = __MONACO_HASH__;
+    } catch {
+      monacoHash = 'dev';
+    }
+    
+    // Try to load the external Monaco bundle
     const script = document.createElement('script');
-    script.type = 'module';
     script.onload = () => {
       // The Monaco bundle should set window.monaco
       if (window.monaco) {
         resolve(window.monaco);
       } else {
-        reject(new Error('Monaco not loaded'));
+        reject(new Error('Monaco not loaded from external bundle'));
       }
     };
-    script.onerror = reject;
+    script.onerror = (error) => {
+      console.warn('Failed to load external Monaco bundle:', error);
+      reject(new Error('Monaco external bundle failed to load'));
+    };
+    
+    // Don't set type="module" since we're using IIFE format
     script.src = `./monaco-standalone-${monacoHash}.js`;
     document.head.appendChild(script);
   });
