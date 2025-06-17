@@ -791,7 +791,7 @@ func findOrBuildDockerImage(ctx context.Context, cwd, gitRoot, model, modelURL, 
 
 	var curImgInitFilesHash string
 	if out, err := combinedOutput(ctx, "docker", "inspect", "--format", "{{json .Config.Labels}}", imgName); err != nil {
-		if strings.Contains(string(out), "No such object") {
+		if strings.Contains(strings.ToLower(string(out)), "no such object") {
 			// Image does not exist, continue and build it.
 			curImgInitFilesHash = ""
 		} else {
