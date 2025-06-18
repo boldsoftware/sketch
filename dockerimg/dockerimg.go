@@ -23,7 +23,9 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"sketch.dev/browser"
+	"sketch.dev/llm"
 	"sketch.dev/llm/ant"
+	"sketch.dev/llm/gem"
 	"sketch.dev/loop/server"
 	"sketch.dev/skribe"
 	"sketch.dev/webui"
@@ -837,23 +839,24 @@ func findOrBuildDockerImage(ctx context.Context, cwd, gitRoot, model, modelURL, 
 			return imgName, nil
 		}
 
+		start := time.Now()
+
+		var service llm.Service
 		if model == "gemini" {
-			if strings.HasSuffix(modelURL, "/gemmsgs") {
-				// Horrible hack! Switch back to anthropic for container building.
-				// We can do this because we are talking to skaband and know the address.
-				modelURL = strings.Replace(modelURL, "/gemmsgs", "/antmsgs", 1)
-			} else {
-				return "", fmt.Errorf("building docker image with gemini model is not supported yet; start with -model=anthropic first then use gemini")
+			service = &gem.Service{
+				URL:    modelURL,
+				APIKey: modelAPIKey,
+				HTTPC:  http.DefaultClient,
+			}
+		} else {
+			service = &ant.Service{
+				URL:    modelURL,
+				APIKey: modelAPIKey,
+				HTTPC:  http.DefaultClient,
 			}
 		}
 
-		start := time.Now()
-		srv := &ant.Service{
-			URL:    modelURL,
-			APIKey: modelAPIKey,
-			HTTPC:  http.DefaultClient,
-		}
-		generatedDockerfile, err = createDockerfile(ctx, srv, initFiles, subPathWorkingDir, verbose)
+		generatedDockerfile, err = createDockerfile(ctx, service, initFiles, subPathWorkingDir, verbose)
 		if err != nil {
 			return "", fmt.Errorf("create dockerfile: %w", err)
 		}
