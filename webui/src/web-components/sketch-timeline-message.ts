@@ -1477,7 +1477,16 @@ export class SketchTimelineMessage extends LitElement {
                                           )}
                                         >${commit.pushed_branch}</span
                                       >
-                                      <span class="copy-icon">
+                                      <span
+                                        class="copy-icon"
+                                        @click=${(e) => {
+                                          e.stopPropagation();
+                                          this.copyToClipboard(
+                                            commit.pushed_branch,
+                                            e,
+                                          );
+                                        }}
+                                      >
                                         <svg
                                           xmlns="http://www.w3.org/2000/svg"
                                           width="14"
