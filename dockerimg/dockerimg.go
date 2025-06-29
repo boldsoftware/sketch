@@ -1031,7 +1031,7 @@ func checkForEmptyGitRepo(ctx context.Context, path string) error {
 }
 
 func findGitRoot(ctx context.Context, path string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--git-common-dir")
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel")
 	cmd.Dir = path
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -1046,11 +1046,10 @@ Consider one of the following options:
 and try running sketch again.
 `, path, path)
 		}
-		return "", fmt.Errorf("git rev-parse --git-common-dir: %s: %w", out, err)
+		return "", fmt.Errorf("git rev-parse --show-toplevel: %s: %w", out, err)
 	}
-	gitDir := strings.TrimSpace(string(out)) // location of .git dir, often as a relative path
-	absGitDir := filepath.Join(path, gitDir)
-	return filepath.Dir(absGitDir), err
+	// The returned path is absolute.
+	return strings.TrimSpace(string(out)), nil
 }
 
 // getEnvForwardingFromGitConfig retrieves environment variables to pass through to Docker
