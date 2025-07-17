@@ -262,6 +262,12 @@ type CLIFlags struct {
 	bashFastTimeout       string
 	bashSlowTimeout       string
 	bashBackgroundTimeout string
+
+	// Pentesting configuration
+	pentestMode       bool
+	pentestTarget     string
+	pentestScope      string
+	pentestResultsDir string
 }
 
 // parseCLIFlags parses all command-line flags and returns a CLIFlags struct
@@ -304,6 +310,12 @@ func parseCLIFlags() CLIFlags {
 	userFlags.StringVar(&flags.bashFastTimeout, "bash-fast-timeout", "30s", "timeout for fast bash commands")
 	userFlags.StringVar(&flags.bashSlowTimeout, "bash-slow-timeout", "10m", "timeout for slow bash commands (downloads, builds, tests)")
 	userFlags.StringVar(&flags.bashBackgroundTimeout, "bash-background-timeout", "24h", "timeout for background bash commands")
+
+	// Pentesting flags
+	userFlags.BoolVar(&flags.pentestMode, "pentest-mode", false, "enable pentesting features and use Kali Linux tools")
+	userFlags.StringVar(&flags.pentestTarget, "pentest-target", "", "specify the target for pentesting operations")
+	userFlags.StringVar(&flags.pentestScope, "pentest-scope", "", "define the scope of the pentesting engagement")
+	userFlags.StringVar(&flags.pentestResultsDir, "pentest-results-dir", "", "specify where to store pentesting results")
 
 	// Internal flags (for sketch developers or internal use)
 	// Args to sketch innie:
@@ -477,6 +489,12 @@ func runInHostMode(ctx context.Context, flags CLIFlags) error {
 		LinkToGitHub:   flags.linkToGitHub,
 		SubtraceToken:  flags.subtraceToken,
 		MCPServers:     flags.mcpServers,
+
+		// Pentesting configuration
+		PentestMode:       flags.pentestMode,
+		PentestTarget:     flags.pentestTarget,
+		PentestScope:      flags.pentestScope,
+		PentestResultsDir: flags.pentestResultsDir,
 	}
 
 	if err := dockerimg.LaunchContainer(ctx, config); err != nil {

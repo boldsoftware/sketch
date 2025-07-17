@@ -2,7 +2,7 @@
 FROM docker.io/chromedp/headless-shell:stable AS chrome
 
 # Stage 2: Main application image
-FROM ubuntu:24.04
+FROM kalilinux/kali-rolling:latest
 
 # Switch from dash to bash by default.
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
@@ -19,22 +19,38 @@ RUN printf '%s\n' \
       'path-exclude=/usr/share/zoneinfo/*' \
     > /etc/dpkg/dpkg.cfg.d/01_nodoc
 
-# Install system packages (removed chromium, will use headless-shell instead)
-RUN apt-get update; \
-	apt-get install -y --no-install-recommends \
-		ca-certificates wget \
-		git jq sqlite3 npm nodejs gh ripgrep fzf python3 curl vim lsof iproute2 less \
-		docker.io docker-compose-v2 docker-buildx \
-		make python3-pip python-is-python3 tree net-tools file build-essential \
-		pipx cargo psmisc bsdmainutils openssh-client sudo \
-		unzip yarn util-linux \
-		libglib2.0-0 libnss3 libx11-6 libxcomposite1 libxdamage1 \
-		libxext6 libxi6 libxrandr2 libgbm1 libgtk-3-0 \
-		fonts-noto-color-emoji fonts-symbola && \
-	fc-cache -f -v && \
-	apt-get clean && \
-	rm -rf /var/lib/apt/lists/* && \
-	rm -rf /usr/share/{doc,doc-base,info,lintian,man,groff,locale,zoneinfo}/*
+# Install system packages and essential Kali tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates wget \
+        git jq sqlite3 npm nodejs ripgrep fzf python3 curl vim lsof iproute2 less \
+        docker.io \
+        make python3-pip python-is-python3 tree net-tools file build-essential \
+        pipx cargo psmisc bsdmainutils openssh-client sudo \
+        unzip yarn util-linux \
+        libglib2.0-0 libnss3 libx11-6 libxcomposite1 libxdamage1 \
+        libxext6 libxi6 libxrandr2 libgbm1 libgtk-3-0 \
+        fonts-noto-color-emoji fonts-symbola \
+        # Essential pentesting tools
+        nmap metasploit-framework burpsuite dirb nikto sqlmap hydra john \
+        wireshark tcpdump aircrack-ng wpscan exploitdb netcat-traditional \
+        hashcat gobuster wordlists whatweb wafw00f && \
+    # Install docker-compose-v2 and docker-buildx
+    mkdir -p /usr/local/lib/docker/cli-plugins && \
+    curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose && \
+    curl -SL https://github.com/docker/buildx/releases/latest/download/buildx-v0.12.0.linux-amd64 -o /usr/local/lib/docker/cli-plugins/docker-buildx && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx && \
+    # Install gh CLI
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y gh && \
+    # Cleanup
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /usr/share/{doc,doc-base,info,lintian,man,groff,locale,zoneinfo}/*
 
 RUN echo '{"storage-driver":"vfs", "bridge":"none", "iptables":false, "ip-forward": false}' \
 	> /etc/docker/daemon.json
@@ -70,6 +86,24 @@ RUN go install golang.org/x/tools/cmd/goimports@latest; \
 # Copy the self-contained Chrome bundle from chromedp/headless-shell
 COPY --from=chrome /headless-shell /headless-shell
 ENV PATH="/headless-shell:${PATH}"
+
+# Install additional pentesting tools that aren't in the default Kali repositories
+RUN pip install --no-cache-dir pwntools impacket && \
+    # Install additional tools from GitHub
+    git clone --depth 1 https://github.com/danielmiessler/SecLists.git /opt/SecLists && \
+    git clone --depth 1 https://github.com/swisskyrepo/PayloadsAllTheThings.git /opt/PayloadsAllTheThings && \
+    git clone --depth 1 https://github.com/OWASP/CheatSheetSeries.git /opt/OWASP-CheatSheets && \
+    # Create symbolic links for common tools
+    ln -sf /usr/bin/python3 /usr/bin/python && \
+    # Set up aliases for common pentesting commands
+    echo 'alias nmap-quick="nmap -T4 -F"' >> /root/.bashrc && \
+    echo 'alias nmap-full="nmap -T4 -A -v"' >> /root/.bashrc && \
+    echo 'alias nmap-vuln="nmap --script vuln"' >> /root/.bashrc
+
+# Set environment variables for pentesting tools
+ENV PENTESTING_TOOLS_PATH=/opt
+ENV WORDLISTS_PATH=/usr/share/wordlists
+ENV PATH="$PATH:$PENTESTING_TOOLS_PATH"
 
 ENV GOTOOLCHAIN=auto
 ENV SKETCH=1

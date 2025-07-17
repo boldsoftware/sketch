@@ -136,6 +136,18 @@ type ContainerConfig struct {
 
 	// MCPServers contains MCP server configurations
 	MCPServers []string
+
+	// PentestMode enables specific pentesting features when true
+	PentestMode bool
+
+	// PentestTarget specifies the target for pentesting operations
+	PentestTarget string
+
+	// PentestScope defines the scope of the pentesting engagement
+	PentestScope string
+
+	// PentestResultsDir specifies where to store pentesting results
+	PentestResultsDir string
 }
 
 // LaunchContainer creates a docker container for a project, installs sketch and opens a connection to it.
@@ -261,7 +273,12 @@ func LaunchContainer(ctx context.Context, config ContainerConfig) error {
 		return fmt.Errorf("failed to copy linux binary to container: %w", err)
 	}
 
-	fmt.Printf("📦 running in container %s\n", cntrName)
+	if config.PentestMode {
+		fmt.Printf("🛡️ running Kali Linux pentesting container %s\n", cntrName)
+		fmt.Println("🔒 Pentesting tools available: nmap, metasploit, burpsuite, dirb, nikto, sqlmap, hydra, john, wireshark, etc.")
+	} else {
+		fmt.Printf("📦 running in container %s\n", cntrName)
+	}
 
 	// Setup subtrace if token is provided (development only) - after container creation, before start
 	if config.SubtraceToken != "" {
@@ -539,6 +556,22 @@ func createDockerContainer(ctx context.Context, cntrName, hostPort, relPath, img
 	// colima does this by default, but Linux docker seems to need this set explicitly
 	cmdArgs = append(cmdArgs, "--add-host", "host.docker.internal:host-gateway")
 
+	// Add network capabilities for pentesting if PentestMode is enabled
+	if config.PentestMode {
+		// Use host network mode for better network access during pentesting
+		cmdArgs = append(cmdArgs, "--network=host")
+
+		// Add capabilities needed for network scanning and packet manipulation
+		cmdArgs = append(cmdArgs, "--cap-add=NET_ADMIN", "--cap-add=NET_RAW")
+
+		// Allow ptrace for debugging tools
+		cmdArgs = append(cmdArgs, "--security-opt", "seccomp=unconfined")
+
+		// Set environment variables for pentesting tools
+		cmdArgs = append(cmdArgs, "-e", "PENTESTING_TOOLS_PATH=/opt")
+		cmdArgs = append(cmdArgs, "-e", "WORDLISTS_PATH=/usr/share/wordlists")
+	}
+
 	// Add seccomp profile to prevent killing PID 1 (the sketch process itself)
 	// Write the seccomp profile to cache directory if it doesn't exist
 	seccompPath, err := ensureSeccompProfile(ctx)
@@ -624,6 +657,32 @@ func createDockerContainer(ctx context.Context, cntrName, hostPort, relPath, img
 	// Add MCP server configurations
 	for _, mcpServer := range config.MCPServers {
 		cmdArgs = append(cmdArgs, "-mcp", mcpServer)
+	}
+
+	// Add pentesting-specific configurations if PentestMode is enabled
+	if config.PentestMode {
+		cmdArgs = append(cmdArgs, "-pentest-mode=true")
+		if config.PentestTarget != "" {
+			cmdArgs = append(cmdArgs, "-pentest-target="+config.PentestTarget)
+		}
+		if config.PentestScope != "" {
+			cmdArgs = append(cmdArgs, "-pentest-scope="+config.PentestScope)
+		}
+		if config.PentestResultsDir != "" {
+			// Create a volume mount for pentest results if not already specified
+			resultsMount := config.PentestResultsDir + ":/opt/pentest-results"
+			mountExists := false
+			for _, mount := range config.Mounts {
+				if strings.Contains(mount, "/opt/pentest-results") {
+					mountExists = true
+					break
+				}
+			}
+			if !mountExists {
+				cmdArgs = append(cmdArgs, "-v", resultsMount)
+			}
+			cmdArgs = append(cmdArgs, "-pentest-results-dir=/opt/pentest-results")
+		}
 	}
 
 	// Add additional docker arguments if provided

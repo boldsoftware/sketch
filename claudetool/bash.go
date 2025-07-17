@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"os"
@@ -94,6 +95,9 @@ Use background for servers/demos that need to stay running.
 
 MUST set slow_ok=true for potentially slow commands: builds, downloads,
 installs, tests, or any other substantive operation.
+
+Set pty=true to run commands in a pseudo-terminal environment, which is required
+for interactive commands or programs that need terminal-like behavior.
 `
 	// If you modify this, update the termui template for prettier rendering.
 	bashInputSchema = `
@@ -112,6 +116,10 @@ installs, tests, or any other substantive operation.
     "background": {
       "type": "boolean",
       "description": "Execute in background"
+    },
+    "pty": {
+      "type": "boolean",
+      "description": "Use pseudo-terminal (PTY) for execution"
     }
   }
 }
@@ -122,6 +130,7 @@ type bashInput struct {
 	Command    string `json:"command"`
 	SlowOK     bool   `json:"slow_ok,omitempty"`
 	Background bool   `json:"background,omitempty"`
+	PTY        bool   `json:"pty,omitempty"`
 }
 
 type BackgroundResult struct {
@@ -208,12 +217,59 @@ func executeBash(ctx context.Context, req bashInput, timeout time.Duration) (str
 	cmd.Env = append(os.Environ(), "SKETCH=1")
 
 	var output bytes.Buffer
-	cmd.Stdin = nil
-	cmd.Stdout = &output
-	cmd.Stderr = &output
+	var pty *bashkit.PTY
+	var err error
+
+	// Use PTY if requested and supported
+	if req.PTY {
+		// Check if PTY is supported on this platform
+		if !bashkit.IsPTYSupported() {
+			slog.WarnContext(ctx, "PTY requested but not supported on this platform, falling back to pipes")
+		} else {
+			// Create a new PTY
+			pty, err = bashkit.NewPTY()
+			if err != nil {
+				return "", fmt.Errorf("failed to create PTY: %w", err)
+			}
+			defer pty.Close()
+
+			// Set terminal size to a reasonable default (80x24)
+			if err := pty.SetWinsize(24, 80); err != nil {
+				slog.WarnContext(ctx, "failed to set PTY window size", "error", err)
+			}
+
+			// Configure command to use the PTY
+			bashkit.SetupPTYCommand(cmd, pty)
+
+			// Set up a goroutine to copy output from the PTY master to our buffer
+			outputDone := make(chan struct{})
+			go func() {
+				defer close(outputDone)
+				bashkit.CopyOutput(&output, pty)
+			}()
+
+			defer func() {
+				// Wait for output copying to complete after command finishes
+				select {
+				case <-outputDone:
+				case <-time.After(100 * time.Millisecond):
+					// If we don't get all output within a reasonable time, continue anyway
+				}
+			}()
+		}
+	}
+
+	// If PTY wasn't requested or failed to initialize, use standard pipes
+	if pty == nil {
+		cmd.Stdin = nil
+		cmd.Stdout = &output
+		cmd.Stderr = &output
+	}
+
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("command failed: %w", err)
 	}
+
 	proc := cmd.Process
 	done := make(chan struct{})
 	go func() {
@@ -227,7 +283,7 @@ func executeBash(ctx context.Context, req bashInput, timeout time.Duration) (str
 		}
 	}()
 
-	err := cmd.Wait()
+	err = cmd.Wait()
 	close(done)
 
 	longOutput := output.Len() > maxBashOutputLength
@@ -308,13 +364,49 @@ func executeBackgroundBash(ctx context.Context, req bashInput, timeout time.Dura
 	}
 	defer stderr.Close()
 
-	// Configure command to use the files
-	cmd.Stdin = nil
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
+	// Use PTY if requested and supported
+	var pty *bashkit.PTY
+	if req.PTY {
+		// Check if PTY is supported on this platform
+		if !bashkit.IsPTYSupported() {
+			slog.WarnContext(ctx, "PTY requested but not supported on this platform, falling back to pipes")
+		} else {
+			// Create a new PTY
+			pty, err = bashkit.NewPTY()
+			if err != nil {
+				return nil, fmt.Errorf("failed to create PTY: %w", err)
+			}
+
+			// Set terminal size to a reasonable default (80x24)
+			if err := pty.SetWinsize(24, 80); err != nil {
+				slog.WarnContext(ctx, "failed to set PTY window size", "error", err)
+			}
+
+			// Configure command to use the PTY
+			bashkit.SetupPTYCommand(cmd, pty)
+
+			// Set up a goroutine to copy output from the PTY master to our files
+			go func() {
+				defer pty.Close()
+
+				// Copy from PTY master to stdout file
+				io.Copy(stdout, pty.Master)
+			}()
+		}
+	}
+
+	// If PTY wasn't requested or failed to initialize, use standard pipes
+	if pty == nil {
+		cmd.Stdin = nil
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+	}
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
+		if pty != nil {
+			pty.Close()
+		}
 		return nil, fmt.Errorf("failed to start background command: %w", err)
 	}
 

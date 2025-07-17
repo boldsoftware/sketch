@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"sketch.dev/claudetool/bashkit"
 )
 
 func TestBashSlowOk(t *testing.T) {
@@ -72,6 +74,95 @@ func TestBashTool(t *testing.T) {
 		expected := "Hello, world!\n"
 		if len(result) == 0 || result[0].Text != expected {
 			t.Errorf("Expected %q, got %q", expected, result[0].Text)
+		}
+	})
+
+	// Test PTY functionality
+	t.Run("PTY Command", func(t *testing.T) {
+		// Skip if PTY is not supported on this platform
+		if !bashkit.IsPTYSupported() {
+			t.Skip("PTY not supported on this platform")
+		}
+
+		input := json.RawMessage(`{"command":"echo 'Hello from PTY!'","pty":true}`)
+
+		result, err := tool.Run(context.Background(), input)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		expected := "Hello from PTY!\r\n"
+		if len(result) == 0 || result[0].Text != expected {
+			t.Errorf("Expected %q, got %q", expected, result[0].Text)
+		}
+	})
+
+	// Test PTY with terminal detection
+	t.Run("PTY Terminal Detection", func(t *testing.T) {
+		// Skip if PTY is not supported on this platform
+		if !bashkit.IsPTYSupported() {
+			t.Skip("PTY not supported on this platform")
+		}
+
+		// Test if isatty detection works with PTY
+		input := json.RawMessage(`{"command":"if [ -t 1 ]; then echo 'Is a TTY'; else echo 'Not a TTY'; fi","pty":true}`)
+
+		result, err := tool.Run(context.Background(), input)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		// With PTY, the command should detect that stdout is a TTY
+		if len(result) == 0 || !strings.Contains(result[0].Text, "Is a TTY") {
+			t.Errorf("Expected TTY detection to work with PTY, got %q", result[0].Text)
+		}
+
+		// Compare with non-PTY mode
+		input = json.RawMessage(`{"command":"if [ -t 1 ]; then echo 'Is a TTY'; else echo 'Not a TTY'; fi"}`)
+
+		result, err = tool.Run(context.Background(), input)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		// Without PTY, the command should detect that stdout is not a TTY
+		if len(result) == 0 || !strings.Contains(result[0].Text, "Not a TTY") {
+			t.Errorf("Expected non-PTY mode to not be detected as TTY, got %q", result[0].Text)
+		}
+	})
+
+	// Test PTY timeout handling
+	t.Run("PTY Command Timeout", func(t *testing.T) {
+		// Skip if PTY is not supported on this platform
+		if !bashkit.IsPTYSupported() {
+			t.Skip("PTY not supported on this platform")
+		}
+
+		// Use a custom BashTool with very short timeout
+		customTimeouts := &Timeouts{
+			Fast: 100 * time.Millisecond,
+		}
+		customBash := &BashTool{
+			Timeouts: customTimeouts,
+		}
+		tool := customBash.Tool()
+
+		// Run a command that will timeout
+		input := json.RawMessage(`{"command":"sleep 1 && echo 'Should not see this'","pty":true}`)
+
+		start := time.Now()
+		_, err := tool.Run(context.Background(), input)
+		elapsed := time.Since(start)
+
+		// Command should time out after ~100ms, not wait for full 1 second
+		if elapsed >= 1*time.Second {
+			t.Errorf("PTY command did not respect timeout, took %v", elapsed)
+		}
+
+		if err == nil {
+			t.Errorf("Expected timeout error for PTY command, got none")
+		} else if !strings.Contains(err.Error(), "timed out") {
+			t.Errorf("Expected timeout error for PTY command, got: %v", err)
 		}
 	})
 
@@ -360,6 +451,59 @@ func TestBackgroundBash(t *testing.T) {
 		expectedStderr := "Output to stderr\n"
 		if string(stderrContent) != expectedStderr {
 			t.Errorf("Expected stderr content %q, got %q", expectedStderr, string(stderrContent))
+		}
+
+		// Clean up
+		os.Remove(bgResult.StdoutFile)
+		os.Remove(bgResult.StderrFile)
+		os.Remove(filepath.Dir(bgResult.StdoutFile))
+	})
+
+	// Test background command with PTY
+	t.Run("Background Command with PTY", func(t *testing.T) {
+		// Skip if PTY is not supported on this platform
+		if !bashkit.IsPTYSupported() {
+			t.Skip("PTY not supported on this platform")
+		}
+
+		inputObj := struct {
+			Command    string `json:"command"`
+			Background bool   `json:"background"`
+			PTY        bool   `json:"pty"`
+		}{
+			Command:    "echo 'Hello from PTY background' && echo $TERM",
+			Background: true,
+			PTY:        true,
+		}
+		inputJSON, err := json.Marshal(inputObj)
+		if err != nil {
+			t.Fatalf("Failed to marshal input: %v", err)
+		}
+
+		result, err := tool.Run(context.Background(), inputJSON)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		// Parse the returned JSON
+		var bgResult BackgroundResult
+		resultStr := result[0].Text
+		if err := json.Unmarshal([]byte(resultStr), &bgResult); err != nil {
+			t.Fatalf("Failed to unmarshal background result: %v", err)
+		}
+
+		// Wait for the command output to be written to file
+		waitForFile(t, bgResult.StdoutFile)
+
+		// Check file contents - should contain PTY output
+		stdoutContent, err := os.ReadFile(bgResult.StdoutFile)
+		if err != nil {
+			t.Fatalf("Failed to read stdout file: %v", err)
+		}
+
+		// Check that the output contains our echo message
+		if !strings.Contains(string(stdoutContent), "Hello from PTY background") {
+			t.Errorf("Expected stdout to contain 'Hello from PTY background', got %q", string(stdoutContent))
 		}
 
 		// Clean up
