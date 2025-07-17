@@ -8,3 +8,7 @@ dist
 
 # makefile artifact
 sketch
+
+./kiro
+/kiro/**
+/kiro

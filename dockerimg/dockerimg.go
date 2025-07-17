@@ -277,7 +277,7 @@ func LaunchContainer(ctx context.Context, config ContainerConfig) error {
 		fmt.Printf("🛡️ running Kali Linux pentesting container %s\n", cntrName)
 		fmt.Println("🔒 Pentesting tools available: nmap, metasploit, burpsuite, dirb, nikto, sqlmap, hydra, john, wireshark, etc.")
 	} else {
-		fmt.Printf("📦 running in container %s\n", cntrName)
+		fmt.Printf("📦 running in Kali Linux container %s\n", cntrName)
 	}
 
 	// Setup subtrace if token is provided (development only) - after container creation, before start
@@ -770,8 +770,9 @@ func postContainerInitConfig(ctx context.Context, localAddr string, sshAvailable
 func findOrBuildDockerImage(ctx context.Context, gitRoot, baseImage string, forceRebuild, verbose bool) (imgName string, err error) {
 	// Default to the published sketch image if no base image is specified
 	if baseImage == "" {
-		imageTag := dockerfileBaseHash()
-		baseImage = fmt.Sprintf("%s:%s", dockerImgName, imageTag)
+		// Use Kali Linux directly as the base image
+		baseImage = "kalilinux/kali-rolling:latest"
+		fmt.Printf("🐋 Using Kali Linux base image directly\n")
 	}
 
 	// Ensure the base image exists locally, pull if necessary
@@ -822,6 +823,20 @@ func ensureBaseImageExists(ctx context.Context, imageName string) error {
 	if !exists {
 		fmt.Printf("🐋 pulling base image %s...\n", imageName)
 		if out, err := combinedOutput(ctx, "docker", "pull", imageName); err != nil {
+			// If the specific hash-tagged image doesn't exist, try falling back to "latest"
+			if strings.Contains(string(out), "manifest unknown") {
+				fmt.Printf("⚠️ Image %s not found, trying latest tag instead...\n", imageName)
+				fallbackImage := dockerImgName + ":latest"
+				if fallbackOut, fallbackErr := combinedOutput(ctx, "docker", "pull", fallbackImage); fallbackErr != nil {
+					return fmt.Errorf("docker pull fallback to %s failed: %s: %w", fallbackImage, fallbackOut, fallbackErr)
+				}
+				// Tag the pulled latest image with the expected hash tag
+				if tagOut, tagErr := combinedOutput(ctx, "docker", "tag", fallbackImage, imageName); tagErr != nil {
+					return fmt.Errorf("docker tag %s %s failed: %s: %w", fallbackImage, imageName, tagOut, tagErr)
+				}
+				fmt.Printf("✅ successfully pulled %s and tagged as %s\n", fallbackImage, imageName)
+				return nil
+			}
 			return fmt.Errorf("docker pull %s failed: %s: %w", imageName, out, err)
 		}
 		fmt.Printf("✅ successfully pulled %s\n", imageName)
