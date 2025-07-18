@@ -530,6 +530,16 @@ func New(agent loop.CodingAgent, logFile *os.File) (*Server, error) {
 		if r.URL.Query().Has("m") {
 			appShell = "mobile-app-shell.html"
 		}
+
+		// Check if filesystem is nil to avoid panic
+		if webuiFS == nil {
+			// Fallback to serving a simple error page
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("<html><body><h1>Error: WebUI assets not available</h1><p>The WebUI assets are not available in this build. Please use the CLI interface.</p></body></html>"))
+			return
+		}
+
 		http.ServeFileFS(w, r, webuiFS, appShell)
 	})
 

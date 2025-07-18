@@ -37,6 +37,7 @@ import (
 	"sketch.dev/skabandclient"
 	"sketch.dev/skribe"
 	"sketch.dev/termui"
+	"sketch.dev/termui/bubbletea"
 	"sketch.dev/update"
 	"sketch.dev/webui"
 )
@@ -234,6 +235,7 @@ type CLIFlags struct {
 	linkToGitHub bool
 	ignoreSig    bool
 	doUpdate     bool
+	useBubbleTea bool
 
 	gitUsername         string
 	gitEmail            string
@@ -304,6 +306,7 @@ func parseCLIFlags() CLIFlags {
 	userFlags.StringVar(&flags.dockerArgs, "docker-args", "", "additional arguments to pass to the docker create command (e.g., --memory=2g --cpus=2)")
 	userFlags.Var(&flags.mounts, "mount", "volume to mount in the container in format /path/on/host:/path/in/container (can be repeated)")
 	userFlags.BoolVar(&flags.termUI, "termui", true, "enable terminal UI")
+	userFlags.BoolVar(&flags.useBubbleTea, "bubbletea", false, "use the new Bubble Tea terminal UI")
 	userFlags.StringVar(&flags.branchPrefix, "branch-prefix", "sketch/", "prefix for git branches created by sketch")
 	userFlags.BoolVar(&flags.ignoreSig, "ignoresig", false, "ignore typical termination signals (SIGINT, SIGTERM)")
 	userFlags.Var(&flags.mcpServers, "mcp", "MCP server configuration as JSON (can be repeated). Schema: {\"name\": \"server-name\", \"type\": \"stdio|http|sse\", \"url\": \"...\", \"command\": \"...\", \"args\": [...], \"env\": {...}, \"headers\": {...}}")
@@ -729,10 +732,17 @@ func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pub
 
 	// Create a variable for terminal UI
 	var s *termui.TermUI
+	var bt *bubbletea.BubbleTeaUI
 
-	// Create the termui instance only if needed
+	// Create the terminal UI instance based on flags
 	if flags.termUI {
-		s = termui.New(agent, ps1URL)
+		if flags.useBubbleTea {
+			// Use the new Bubble Tea terminal UI
+			bt = bubbletea.New(agent, ps1URL)
+		} else {
+			// Use the classic terminal UI
+			s = termui.New(agent, ps1URL)
+		}
 	}
 
 	// Start skaband connection loop if needed
@@ -757,7 +767,7 @@ func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pub
 	}
 
 	// Handle one-shot mode or mode without terminal UI
-	if flags.oneShot || s == nil {
+	if flags.oneShot || (s == nil && bt == nil) {
 		it := agent.NewIterator(ctx, 0)
 		for {
 			m := it.Next()
@@ -780,22 +790,38 @@ func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pub
 			}
 		}
 	}
-	if s == nil {
-		panic("Should have exited above.")
-	}
 
-	// Run the terminal UI
-	defer func() {
-		r := recover()
-		if err := s.RestoreOldState(); err != nil {
-			fmt.Fprintf(os.Stderr, "couldn't restore old terminal state: %s\n", err)
+	// Run the appropriate terminal UI
+	if flags.useBubbleTea && bt != nil {
+		// Run the Bubble Tea terminal UI
+		defer func() {
+			r := recover()
+			if err := bt.RestoreOldState(); err != nil {
+				fmt.Fprintf(os.Stderr, "couldn't restore old terminal state: %s\n", err)
+			}
+			if r != nil {
+				panic(r)
+			}
+		}()
+		if err := bt.Run(ctx); err != nil {
+			return err
 		}
-		if r != nil {
-			panic(r)
+	} else if s != nil {
+		// Run the classic terminal UI
+		defer func() {
+			r := recover()
+			if err := s.RestoreOldState(); err != nil {
+				fmt.Fprintf(os.Stderr, "couldn't restore old terminal state: %s\n", err)
+			}
+			if r != nil {
+				panic(r)
+			}
+		}()
+		if err := s.Run(ctx); err != nil {
+			return err
 		}
-	}()
-	if err := s.Run(ctx); err != nil {
-		return err
+	} else {
+		panic("Should have exited above.")
 	}
 
 	return nil
