@@ -2,24 +2,27 @@ package bubbletea
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"sketch.dev/loop"
 )
 
-// InputComponent handles user input
+// InputComponent handles user input and command processing
 type InputComponent struct {
-	agent      loop.CodingAgent
-	ctx        context.Context
-	width      int
-	prompt     string
-	input      string
-	cursor     int
-	thinking   bool
-	history    []string
-	historyIdx int
+	agent        loop.CodingAgent
+	ctx          context.Context
+	textInput    textinput.Model
+	history      []string
+	historyIndex int
+	prompt       string
+	thinking     bool
+	multiLine    bool
+	width        int
+	height       int
 
 	// Styling
 	promptStyle lipgloss.Style
@@ -28,35 +31,94 @@ type InputComponent struct {
 
 // Init initializes the input component
 func (i *InputComponent) Init() tea.Cmd {
-	return nil
+	return textinput.Blink
 }
 
 // Update handles messages for the input component
 func (i *InputComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		return i.handleKeyPress(msg)
+		switch msg.Type {
+		case tea.KeyEnter:
+			if i.thinking {
+				// Ignore input while thinking
+				return i, nil
+			}
+
+			// Get the current input
+			input := i.textInput.Value()
+			if input == "" {
+				return i, nil
+			}
+
+			// Add to history
+			i.history = append(i.history, input)
+			if len(i.history) > 100 {
+				i.history = i.history[len(i.history)-100:]
+			}
+			i.historyIndex = len(i.history)
+
+			// Clear input
+			i.textInput.SetValue("")
+
+			// Process command or send to agent
+			if strings.HasPrefix(input, "/") || strings.HasPrefix(input, "!") {
+				// Process as command
+				return i, func() tea.Msg {
+					return commandMsg{command: input}
+				}
+			} else {
+				// Send as user input
+				return i, func() tea.Msg {
+					return userInputMsg{input: input}
+				}
+			}
+
+		case tea.KeyUp:
+			// Navigate history up
+			if i.historyIndex > 0 {
+				i.historyIndex--
+				i.textInput.SetValue(i.history[i.historyIndex])
+			}
+
+		case tea.KeyDown:
+			// Navigate history down
+			if i.historyIndex < len(i.history)-1 {
+				i.historyIndex++
+				i.textInput.SetValue(i.history[i.historyIndex])
+			} else if i.historyIndex == len(i.history)-1 {
+				i.historyIndex = len(i.history)
+				i.textInput.SetValue("")
+			}
+
+		case tea.KeyCtrlC:
+			// Send a cancel message instead of directly calling Cancel
+			return i, func() tea.Msg {
+				return systemMessageMsg{content: "Operation cancelled by user"}
+			}
+		}
 	case tea.WindowSizeMsg:
 		i.width = msg.Width
+		i.textInput.Width = msg.Width - 4 // Account for prompt and padding
 	}
-	return i, nil
+
+	// Update text input
+	i.textInput, cmd = i.textInput.Update(msg)
+	return i, cmd
 }
 
 // View renders the input component
 func (i *InputComponent) View() string {
+	var prompt string
 	if i.thinking {
-		return i.promptStyle.Render("⏳ Thinking...") + " " + i.inputStyle.Render("(Press Ctrl+C to cancel)")
+		prompt = i.promptStyle.Render("⏳ ")
+	} else {
+		prompt = i.promptStyle.Render(i.prompt)
 	}
 
-	// Build the input line with cursor
-	var inputLine strings.Builder
-	inputLine.WriteString(i.input[:i.cursor])
-	inputLine.WriteString("█") // Cursor
-	if i.cursor < len(i.input) {
-		inputLine.WriteString(i.input[i.cursor:])
-	}
-
-	return i.promptStyle.Render(i.prompt) + " " + i.inputStyle.Render(inputLine.String())
+	return fmt.Sprintf("%s%s", prompt, i.textInput.View())
 }
 
 // SetAgent sets the agent reference
@@ -71,138 +133,57 @@ func (i *InputComponent) SetContext(ctx context.Context) {
 
 // SetPrompt sets the prompt text and thinking state
 func (i *InputComponent) SetPrompt(prompt string, thinking bool) {
-	i.prompt = prompt
+	if prompt != "" {
+		i.prompt = prompt + " > "
+	}
 	i.thinking = thinking
-}
 
-// handleKeyPress processes keyboard input
-func (i *InputComponent) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Ignore input while thinking
-	if i.thinking {
-		switch msg.String() {
-		case "ctrl+c":
-			// Cancel current operation
-			if i.agent != nil {
-				i.agent.CancelTurn(nil)
-			}
-			i.thinking = false
-		}
-		return i, nil
+	// Disable input while thinking
+	if thinking {
+		i.textInput.Blur()
+	} else {
+		i.textInput.Focus()
 	}
-
-	switch msg.String() {
-	case "enter":
-		if i.input == "" {
-			return i, nil
-		}
-
-		// Add to history
-		i.history = append(i.history, i.input)
-		i.historyIdx = len(i.history)
-
-		// Send input to agent
-		if i.agent != nil && i.ctx != nil {
-			input := i.input
-			i.input = ""
-			i.cursor = 0
-			i.thinking = true
-
-			// Return a command to send the input to the agent
-			return i, func() tea.Msg {
-				i.agent.UserMessage(i.ctx, input)
-				return userInputMsg{input: input}
-			}
-		}
-
-		// Clear input
-		i.input = ""
-		i.cursor = 0
-
-	case "ctrl+c":
-		// Cancel or exit
-		return i, tea.Quit
-
-	case "backspace":
-		if i.cursor > 0 {
-			i.input = i.input[:i.cursor-1] + i.input[i.cursor:]
-			i.cursor--
-		}
-
-	case "delete":
-		if i.cursor < len(i.input) {
-			i.input = i.input[:i.cursor] + i.input[i.cursor+1:]
-		}
-
-	case "left":
-		if i.cursor > 0 {
-			i.cursor--
-		}
-
-	case "right":
-		if i.cursor < len(i.input) {
-			i.cursor++
-		}
-
-	case "up":
-		// Navigate history
-		if len(i.history) > 0 && i.historyIdx > 0 {
-			i.historyIdx--
-			i.input = i.history[i.historyIdx]
-			i.cursor = len(i.input)
-		}
-
-	case "down":
-		// Navigate history
-		if i.historyIdx < len(i.history)-1 {
-			i.historyIdx++
-			i.input = i.history[i.historyIdx]
-			i.cursor = len(i.input)
-		} else if i.historyIdx == len(i.history)-1 {
-			// At the end of history, clear input
-			i.historyIdx = len(i.history)
-			i.input = ""
-			i.cursor = 0
-		}
-
-	case "home":
-		i.cursor = 0
-
-	case "end":
-		i.cursor = len(i.input)
-
-	default:
-		// Handle regular character input
-		if len(msg.Runes) == 1 {
-			i.input = i.input[:i.cursor] + string(msg.Runes) + i.input[i.cursor:]
-			i.cursor++
-		}
-	}
-
-	return i, nil
 }
 
 // HandleMessage implements MessageHandler
 func (i *InputComponent) HandleMessage(msg Message) tea.Cmd {
+	// Route message based on type
+	switch typedMsg := msg.(type) {
+	case agentMessageMsg:
+		return i.HandleAgentMessage(typedMsg.message)
+	case toolUseMsg:
+		return i.HandleToolUse(typedMsg.message)
+	case systemMessageMsg:
+		// Convert system message to error message for handling
+		agentMsg := &loop.AgentMessage{
+			Type:    loop.ErrorMessageType,
+			Content: typedMsg.content,
+		}
+		return i.HandleError(agentMsg)
+	}
 	return nil
 }
 
 // HandleAgentMessage handles agent messages
 func (i *InputComponent) HandleAgentMessage(msg *loop.AgentMessage) tea.Cmd {
-	// When agent is done, update thinking state
-	if msg.EndOfTurn {
-		i.thinking = false
+	// Update thinking state based on message type
+	if msg.Type == loop.AgentMessageType {
+		i.SetPrompt("", false) // Agent responded, no longer thinking
 	}
 	return nil
 }
 
 // HandleToolUse handles tool use messages
 func (i *InputComponent) HandleToolUse(msg *loop.AgentMessage) tea.Cmd {
+	// Update thinking state based on tool use
+	i.SetPrompt("", true) // Agent is using tools, show thinking state
 	return nil
 }
 
 // HandleError handles error messages
 func (i *InputComponent) HandleError(msg *loop.AgentMessage) tea.Cmd {
-	// On error, stop thinking
-	i.thinking = false
+	// Reset thinking state on error
+	i.SetPrompt("", false)
 	return nil
 }

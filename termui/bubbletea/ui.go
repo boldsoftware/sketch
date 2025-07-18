@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"sketch.dev/loop"
@@ -42,6 +44,9 @@ type BubbleTeaApp struct {
 	width  int
 	height int
 	ready  bool
+
+	// Error handling and recovery
+	errorHandler *ErrorHandler
 }
 
 // BubbleTeaUI wraps the BubbleTeaApp and provides the external interface
@@ -49,6 +54,45 @@ type BubbleTeaUI struct {
 	app     *BubbleTeaApp
 	program *tea.Program
 	agent   loop.CodingAgent // Direct reference to agent for easier access
+}
+
+// HandleToolUse implements the TermUI interface for backward compatibility
+func (ui *BubbleTeaUI) HandleToolUse(resp *loop.AgentMessage) {
+	if ui.program != nil {
+		ui.program.Send(toolUseMsg{message: resp})
+	}
+}
+
+// AppendChatMessage implements the TermUI interface for backward compatibility
+func (ui *BubbleTeaUI) AppendChatMessage(msg interface{}) {
+	if ui.program != nil {
+		// Extract content from the message based on its type
+		var content string
+		switch m := msg.(type) {
+		case string:
+			content = m
+		case struct{ Content string }:
+			content = m.Content
+		default:
+			// Try to access Content field via reflection or just use string representation
+			content = fmt.Sprintf("%v", msg)
+		}
+
+		agentMsg := &loop.AgentMessage{
+			Type:      loop.UserMessageType,
+			Content:   content,
+			Timestamp: time.Now(),
+		}
+		ui.program.Send(agentMessageMsg{message: agentMsg})
+	}
+}
+
+// AppendSystemMessage implements the TermUI interface for backward compatibility
+func (ui *BubbleTeaUI) AppendSystemMessage(fmtString string, args ...any) {
+	if ui.program != nil {
+		content := fmt.Sprintf(fmtString, args...)
+		ui.program.Send(systemMessageMsg{content: content})
+	}
 }
 
 // New creates a new BubbleTeaUI instance
@@ -59,6 +103,7 @@ func New(agent loop.CodingAgent, httpURL string) *BubbleTeaUI {
 		pushedBranches: make(map[string]struct{}),
 		messageQueue:   NewMessageQueue(1000), // Buffer up to 1000 messages
 		router:         NewMessageRouter(),
+		errorHandler:   NewErrorHandler(nil), // Initialize error handler
 	}
 	return &BubbleTeaUI{
 		app:   app,
@@ -94,6 +139,9 @@ func (ui *BubbleTeaUI) Run(ctx context.Context) error {
 	ui.app.inputView.SetContext(programCtx)
 	ui.app.statusBar.SetContext(programCtx)
 
+	// Create recovery manager
+	recoveryManager := NewRecoveryManager(programCtx, ui.app.errorHandler)
+
 	// Create and start the program with the BubbleTeaApp as the model
 	// Use AltScreen for full-screen mode and enable mouse support for scrolling
 	ui.program = tea.NewProgram(
@@ -110,19 +158,45 @@ func (ui *BubbleTeaUI) Run(ctx context.Context) error {
 		ui.program.Quit()
 	}()
 
-	// Start message processing in background
-	go ui.processAgentMessages(programCtx)
+	// Start message processing in background with recovery
+	go func() {
+		defer recoveryManager.SafeExecute("processAgentMessages", func() error {
+			ui.processAgentMessages(programCtx)
+			return nil
+		})
+	}()
 
-	// Start state transition monitoring
-	go ui.processStateTransitions(programCtx)
+	// Start state transition monitoring with recovery
+	go func() {
+		defer recoveryManager.SafeExecute("processStateTransitions", func() error {
+			ui.processStateTransitions(programCtx)
+			return nil
+		})
+	}()
 
 	// Set up panic recovery
 	defer func() {
 		if r := recover(); r != nil {
 			// Log the panic
-			fmt.Printf("Recovered from panic in Bubble Tea UI: %v\n", r)
+			if ui.app.errorHandler != nil {
+				ui.app.errorHandler.logger.Error("Recovered from panic in Bubble Tea UI", "error", r)
+			} else {
+				fmt.Printf("Recovered from panic in Bubble Tea UI: %v\n", r)
+			}
+
 			// Ensure terminal state is restored
 			ui.popTerminalTitle()
+
+			// Attempt to restore component states
+			if ui.app.chatView != nil {
+				recoveryManager.RestoreComponentState(ui.app.chatView)
+			}
+			if ui.app.inputView != nil {
+				recoveryManager.RestoreComponentState(ui.app.inputView)
+			}
+			if ui.app.statusBar != nil {
+				recoveryManager.RestoreComponentState(ui.app.statusBar)
+			}
 		}
 	}()
 
@@ -165,9 +239,16 @@ func (ui *BubbleTeaUI) initializeComponents() error {
 	ui.app.router.RegisterHandler("tool_use", ui.app.chatView.(MessageHandler))
 	ui.app.router.RegisterHandler("system_message", ui.app.chatView.(MessageHandler))
 
+	// Also register input component as a message handler
+	ui.app.router.RegisterHandler("agent_message", ui.app.inputView.(MessageHandler))
+	ui.app.router.RegisterHandler("tool_use", ui.app.inputView.(MessageHandler))
+	ui.app.router.RegisterHandler("system_message", ui.app.inputView.(MessageHandler))
+
 	// Set up input component with URL
 	if inputComp, ok := ui.app.inputView.(*InputComponent); ok {
 		inputComp.SetPrompt(ui.app.httpURL, false)
+		// Ensure the input is focused
+		inputComp.textInput.Focus()
 	}
 
 	return nil
@@ -492,7 +573,7 @@ func (mr *MessageRouter) RegisterHandler(messageType string, handler MessageHand
 }
 
 // RouteMessage routes a message to all registered handlers for its type
-func (mr *MessageRouter) RouteMessage(msg UIMessage) []tea.Cmd {
+func (mr *MessageRouter) RouteMessage(msg Message) []tea.Cmd {
 	mr.mu.RLock()
 	defer mr.mu.RUnlock()
 
@@ -624,10 +705,34 @@ func (app *BubbleTeaApp) View() string {
 
 // handleKeyPress processes keyboard input
 func (app *BubbleTeaApp) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Global key handlers
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return app, tea.Quit
 	}
+
+	// First, let the input component handle the key press
+	if app.inputView != nil {
+		model, cmd := app.inputView.Update(msg)
+		if uiComponent, ok := model.(UIComponent); ok {
+			app.inputView = uiComponent
+		}
+		if cmd != nil {
+			return app, cmd
+		}
+	}
+
+	// Then, let the chat view handle the key press for scrolling
+	if app.chatView != nil {
+		model, cmd := app.chatView.Update(msg)
+		if uiComponent, ok := model.(UIComponent); ok {
+			app.chatView = uiComponent
+		}
+		if cmd != nil {
+			return app, cmd
+		}
+	}
+
 	return app, nil
 }
 
@@ -686,19 +791,95 @@ func (app *BubbleTeaApp) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, t
 	app.ready = true
 
 	// Update component sizes based on new window dimensions
-	// This will be implemented when we add proper layout management
+	var cmds []tea.Cmd
+
+	// Update chat view size
+	if app.chatView != nil {
+		model, cmd := app.chatView.Update(msg)
+		if uiComponent, ok := model.(UIComponent); ok {
+			app.chatView = uiComponent
+		}
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	// Update input view size
+	if app.inputView != nil {
+		model, cmd := app.inputView.Update(msg)
+		if uiComponent, ok := model.(UIComponent); ok {
+			app.inputView = uiComponent
+		}
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	// Update status bar size
+	if app.statusBar != nil {
+		model, cmd := app.statusBar.Update(msg)
+		if uiComponent, ok := model.(UIComponent); ok {
+			app.statusBar = uiComponent
+		}
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	// Return batch command if we have multiple commands
+	if len(cmds) > 1 {
+		return app, tea.Batch(cmds...)
+	} else if len(cmds) == 1 {
+		return app, cmds[0]
+	}
+
 	return app, nil
 }
 
-// Placeholder component constructors - these will be implemented in subsequent tasks
+// Component constructors
 func NewMessagesComponent() UIComponent {
-	// Placeholder implementation
-	return &placeholderComponent{name: "Messages"}
+	// Create a viewport for scrollable message display
+	vp := viewport.New(80, 20)
+	vp.SetContent("Welcome to Sketch! Type your message below.")
+
+	return &MessagesComponent{
+		viewport: vp,
+		messages: []DisplayMessage{},
+		userStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("12")).
+			Bold(true),
+		agentStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("5")).
+			Bold(true),
+		systemStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")),
+		errorStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("9")).
+			Bold(true),
+	}
 }
 
 func NewInputComponent() UIComponent {
-	// Placeholder implementation
-	return &placeholderComponent{name: "Input"}
+	// Create a text input for user input
+	ti := textinput.New()
+	ti.Placeholder = "Type your message here..."
+	ti.Focus()
+	ti.CharLimit = 1000
+	ti.Width = 80
+
+	return &InputComponent{
+		textInput:    ti,
+		history:      []string{},
+		historyIndex: -1,
+		prompt:       "> ",
+		thinking:     false,
+		multiLine:    false,
+		promptStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("12")).
+			Bold(true),
+		inputStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("15")),
+	}
 }
 
 // Placeholder component for testing
@@ -729,6 +910,24 @@ func (p *placeholderComponent) SetContext(ctx context.Context) {
 }
 
 // Implement MessageHandler interface for placeholder
+func (p *placeholderComponent) HandleMessage(msg Message) tea.Cmd {
+	// Route message based on type
+	switch typedMsg := msg.(type) {
+	case agentMessageMsg:
+		return p.HandleAgentMessage(typedMsg.message)
+	case toolUseMsg:
+		return p.HandleToolUse(typedMsg.message)
+	case systemMessageMsg:
+		// Convert system message to error message for handling
+		agentMsg := &loop.AgentMessage{
+			Type:    loop.ErrorMessageType,
+			Content: typedMsg.content,
+		}
+		return p.HandleError(agentMsg)
+	}
+	return nil
+}
+
 func (p *placeholderComponent) HandleAgentMessage(msg *loop.AgentMessage) tea.Cmd {
 	return nil
 }

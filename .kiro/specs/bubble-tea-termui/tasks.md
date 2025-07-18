@@ -93,7 +93,7 @@
     - Replace viewport.HalfViewDown with viewport.HalfPageDown
     - _Requirements: 2.1_
 
-  - [ ] 5.3 Fix BubbleTeaUI agent access
+  - [x] 5.3 Fix BubbleTeaUI agent access
     - Add agent field to BubbleTeaUI struct or fix agent access pattern
     - Ensure proper agent reference passing between components
     - _Requirements: 1.1, 8.1_
@@ -234,7 +234,7 @@
     - Implement error display with clear user messaging
     - _Requirements: 4.5_
 
-  - [ ] 11.2 Add recovery mechanisms
+  - [x] 11.2 Add recovery mechanisms
     - Implement state recovery for component failures
     - Add automatic retry logic for transient errors
     - Ensure terminal state restoration even during errors
@@ -242,7 +242,7 @@
 
 - [ ] 12. Add performance optimizations
 
-  - [ ] 12.1 Implement efficient rendering
+  - [x] 12.1 Implement efficient rendering
 
     - Add lazy rendering for large message histories
     - Implement message caching to avoid re-computation

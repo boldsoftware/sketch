@@ -35,6 +35,10 @@ type MessagesComponent struct {
 	width        int
 	height       int
 
+	// Message caching and memory management
+	messageCache   map[int]string // Cache rendered messages by index
+	maxHistorySize int            // Maximum number of messages to keep in history
+
 	// Styling
 	userStyle   lipgloss.Style
 	agentStyle  lipgloss.Style
@@ -127,12 +131,47 @@ func (m *MessagesComponent) SetContext(ctx context.Context) {
 func (m *MessagesComponent) updateViewportContent() {
 	var content strings.Builder
 
-	for _, msg := range m.messages {
-		content.WriteString(m.renderMessage(msg))
+	// Implement lazy rendering for large message histories
+	// Only render messages that are likely to be visible or close to the viewport
+	// This significantly improves performance with large message histories
+
+	// Calculate the number of messages that can fit in the viewport
+	// Use a conservative estimate of 5 lines per message
+	messagesPerViewport := m.height / 5
+	if messagesPerViewport < 5 {
+		messagesPerViewport = 5 // Minimum number of messages to render
+	}
+
+	// Add a buffer for scrolling
+	bufferSize := messagesPerViewport * 2
+
+	// Determine which messages to render
+	startIdx := 0
+	if len(m.messages) > bufferSize {
+		// If we have more messages than can fit in the buffer,
+		// only render the most recent ones
+		startIdx = len(m.messages) - bufferSize
+	}
+
+	// Render only the messages that are likely to be visible
+	for i := startIdx; i < len(m.messages); i++ {
+		content.WriteString(m.renderMessage(m.messages[i]))
 		content.WriteString("\n\n")
 	}
 
-	m.viewport.SetContent(content.String())
+	// Create a temporary string builder for the indicator
+	var fullContent strings.Builder
+
+	// If we're not showing all messages, add an indicator at the beginning
+	if startIdx > 0 {
+		indicator := fmt.Sprintf("[ %d earlier messages not shown ]\n\n", startIdx)
+		fullContent.WriteString(indicator)
+	}
+
+	// Add the main content
+	fullContent.WriteString(content.String())
+
+	m.viewport.SetContent(fullContent.String())
 
 	// Auto-scroll to bottom if we're already at the bottom
 	if m.viewport.AtBottom() {
@@ -142,20 +181,45 @@ func (m *MessagesComponent) updateViewportContent() {
 
 // renderMessage renders a single message
 func (m *MessagesComponent) renderMessage(msg DisplayMessage) string {
+	// Check if we have a cached version of this message
+	msgIndex := -1
+	for i, m := range m.messages {
+		if &m == &msg {
+			msgIndex = i
+			break
+		}
+	}
+
+	// If we found the message index and it's in the cache, return the cached version
+	if msgIndex >= 0 {
+		if cached, ok := m.messageCache[msgIndex]; ok {
+			return cached
+		}
+	}
+
+	// Otherwise, render the message
+	var rendered string
 	switch msg.Type {
 	case loop.UserMessageType:
-		return m.renderUserMessage(msg)
+		rendered = m.renderUserMessage(msg)
 	case loop.AgentMessageType:
-		return m.renderAgentMessage(msg)
+		rendered = m.renderAgentMessage(msg)
 	case loop.ToolUseMessageType:
-		return m.renderToolMessage(msg)
+		rendered = m.renderToolMessage(msg)
 	case loop.ErrorMessageType:
-		return m.renderErrorMessage(msg)
+		rendered = m.renderErrorMessage(msg)
 	case loop.CommitMessageType:
-		return m.renderCommitMessage(msg)
+		rendered = m.renderCommitMessage(msg)
 	default:
-		return m.renderSystemMessage(msg)
+		rendered = m.renderSystemMessage(msg)
 	}
+
+	// Cache the rendered message if we have an index
+	if msgIndex >= 0 {
+		m.messageCache[msgIndex] = rendered
+	}
+
+	return rendered
 }
 
 // renderUserMessage renders a user message
@@ -229,7 +293,40 @@ func (m *MessagesComponent) renderCommitMessage(msg DisplayMessage) string {
 
 // AddMessage adds a message to the display
 func (m *MessagesComponent) AddMessage(msg DisplayMessage) {
+	// Initialize message cache if needed
+	if m.messageCache == nil {
+		m.messageCache = make(map[int]string)
+	}
+
+	// Initialize max history size if not set
+	if m.maxHistorySize <= 0 {
+		m.maxHistorySize = 1000 // Default to 1000 messages
+	}
+
+	// Add the message to the history
 	m.messages = append(m.messages, msg)
+
+	// Enforce message history limit
+	if len(m.messages) > m.maxHistorySize {
+		// Remove oldest messages
+		excess := len(m.messages) - m.maxHistorySize
+		m.messages = m.messages[excess:]
+
+		// Clear cache entries for removed messages
+		for i := 0; i < excess; i++ {
+			delete(m.messageCache, i)
+		}
+
+		// Reindex cache keys
+		newCache := make(map[int]string)
+		for k, v := range m.messageCache {
+			if k >= excess {
+				newCache[k-excess] = v
+			}
+		}
+		m.messageCache = newCache
+	}
+
 	m.updateViewportContent()
 }
 

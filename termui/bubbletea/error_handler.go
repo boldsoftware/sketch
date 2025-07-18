@@ -3,155 +3,133 @@ package bubbletea
 import (
 	"fmt"
 	"log/slog"
-	"os"
 	"runtime/debug"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-)
-
-// ErrorCategory defines the type of error for appropriate handling
-type ErrorCategory string
-
-const (
-	// Error categories
-	TerminalError    ErrorCategory = "terminal"
-	AgentError       ErrorCategory = "agent"
-	RenderError      ErrorCategory = "render"
-	InputError       ErrorCategory = "input"
-	FileServingError ErrorCategory = "file_serving"
-	NetworkError     ErrorCategory = "network"
-	InternalError    ErrorCategory = "internal"
 )
 
 // ErrorHandler manages error handling and recovery
 type ErrorHandler struct {
 	logger *slog.Logger
-	styles map[string]lipgloss.Style
 }
 
 // NewErrorHandler creates a new error handler
-func NewErrorHandler() *ErrorHandler {
-	// Create logger
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelError,
-	}))
-
-	// Create styles for error messages
-	styles := map[string]lipgloss.Style{
-		"error": lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Bold(true),
-		"warning": lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214")).
-			Bold(true),
-		"info": lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")),
-		"recovery": lipgloss.NewStyle().
-			Foreground(lipgloss.Color("35")).
-			Italic(true),
+func NewErrorHandler(logger *slog.Logger) *ErrorHandler {
+	if logger == nil {
+		logger = slog.Default()
 	}
-
 	return &ErrorHandler{
 		logger: logger,
-		styles: styles,
 	}
 }
 
-// HandleError handles an error with the specified category
-func (e *ErrorHandler) HandleError(err error, category ErrorCategory) tea.Cmd {
-	if err == nil {
-		return nil
-	}
-
-	// Log the error
-	e.logger.Error("Error occurred",
-		"category", category,
-		"error", err.Error(),
-		"stack", string(debug.Stack()))
-
-	// Create error message based on category
-	var msg string
-	switch category {
-	case TerminalError:
-		msg = fmt.Sprintf("Terminal error: %s", err.Error())
-	case AgentError:
-		msg = fmt.Sprintf("Agent error: %s", err.Error())
-	case RenderError:
-		msg = fmt.Sprintf("Rendering error: %s", err.Error())
-	case InputError:
-		msg = fmt.Sprintf("Input error: %s", err.Error())
-	case FileServingError:
-		msg = fmt.Sprintf("File serving error: %s", err.Error())
-	case NetworkError:
-		msg = fmt.Sprintf("Network error: %s", err.Error())
-	default:
-		msg = fmt.Sprintf("Internal error: %s", err.Error())
-	}
-
-	// Return a command to display the error message
-	return func() tea.Msg {
-		return errorMsg{
-			message:  msg,
-			category: string(category),
-		}
-	}
-}
-
-// HandleTerminalError handles terminal-specific errors
+// HandleTerminalError handles terminal-related errors
 func (e *ErrorHandler) HandleTerminalError(err error) tea.Cmd {
-	return e.HandleError(err, TerminalError)
+	e.logger.Error("Terminal error", "error", err)
+	return func() tea.Msg {
+		return systemMessageMsg{content: fmt.Sprintf("Terminal error: %v", err)}
+	}
 }
 
-// HandleAgentError handles agent-specific errors
+// HandleAgentError handles agent communication errors
 func (e *ErrorHandler) HandleAgentError(err error) tea.Cmd {
-	return e.HandleError(err, AgentError)
+	e.logger.Error("Agent error", "error", err)
+	return func() tea.Msg {
+		return systemMessageMsg{content: fmt.Sprintf("Agent error: %v", err)}
+	}
 }
 
 // HandleRenderError handles rendering errors
 func (e *ErrorHandler) HandleRenderError(err error) tea.Cmd {
-	return e.HandleError(err, RenderError)
+	e.logger.Error("Render error", "error", err)
+	return func() tea.Msg {
+		return systemMessageMsg{content: fmt.Sprintf("Render error: %v", err)}
+	}
 }
 
 // HandleInputError handles input processing errors
 func (e *ErrorHandler) HandleInputError(err error) tea.Cmd {
-	return e.HandleError(err, InputError)
+	e.logger.Error("Input error", "error", err)
+	return func() tea.Msg {
+		return systemMessageMsg{content: fmt.Sprintf("Input error: %v", err)}
+	}
 }
 
-// HandleFileServingError handles file serving errors
-func (e *ErrorHandler) HandleFileServingError(err error) tea.Cmd {
-	return e.HandleError(err, FileServingError)
+// RecoverFromPanic recovers from panics and returns a command to display the error
+func (e *ErrorHandler) RecoverFromPanic() tea.Cmd {
+	if r := recover(); r != nil {
+		stack := debug.Stack()
+		e.logger.Error("Recovered from panic",
+			"error", r,
+			"stack", string(stack))
+
+		return func() tea.Msg {
+			return systemMessageMsg{content: fmt.Sprintf("Recovered from panic: %v", r)}
+		}
+	}
+	return nil
 }
 
-// HandleNetworkError handles network-related errors
-func (e *ErrorHandler) HandleNetworkError(err error) tea.Cmd {
-	return e.HandleError(err, NetworkError)
-}
-
-// FormatErrorMessage formats an error message with appropriate styling
-func (e *ErrorHandler) FormatErrorMessage(msg string, category string) string {
-	prefix := "❌ Error: "
-
-	switch category {
-	case string(TerminalError):
-		prefix = "❌ Terminal Error: "
-	case string(AgentError):
-		prefix = "❌ Agent Error: "
-	case string(RenderError):
-		prefix = "❌ Rendering Error: "
-	case string(InputError):
-		prefix = "❌ Input Error: "
-	case string(FileServingError):
-		prefix = "❌ File Serving Error: "
-	case string(NetworkError):
-		prefix = "❌ Network Error: "
+// WithRecovery wraps a command with panic recovery
+func (e *ErrorHandler) WithRecovery(cmd tea.Cmd) tea.Cmd {
+	if cmd == nil {
+		return nil
 	}
 
-	return e.styles["error"].Render(prefix) + msg
+	return func() tea.Msg {
+		defer func() {
+			if r := recover(); r != nil {
+				e.logger.Error("Recovered from panic in command", "error", r)
+			}
+		}()
+
+		return cmd()
+	}
 }
 
-// errorMsg is a message type for error notifications
+// RetryWithBackoff retries a command with exponential backoff
+func (e *ErrorHandler) RetryWithBackoff(cmd tea.Cmd, maxRetries int) tea.Cmd {
+	return func() tea.Msg {
+		var lastErr error
+		for i := 0; i < maxRetries; i++ {
+			// Try to execute the command
+			msg := cmd()
+
+			// Check if the message is an error
+			if errMsg, ok := msg.(errorMsg); ok {
+				lastErr = errMsg.err
+				// Wait with exponential backoff
+				backoff := time.Duration(1<<uint(i)) * 100 * time.Millisecond
+				if backoff > 5*time.Second {
+					backoff = 5 * time.Second
+				}
+				e.logger.Info("Retrying command after error",
+					"attempt", i+1,
+					"maxRetries", maxRetries,
+					"backoff", backoff,
+					"error", lastErr)
+				time.Sleep(backoff)
+				continue
+			}
+
+			// If not an error, return the message
+			return msg
+		}
+
+		// If we've exhausted retries, return the last error
+		e.logger.Error("Command failed after retries",
+			"maxRetries", maxRetries,
+			"error", lastErr)
+		return systemMessageMsg{content: fmt.Sprintf("Operation failed after %d retries: %v", maxRetries, lastErr)}
+	}
+}
+
+// errorMsg represents an error message
 type errorMsg struct {
-	message  string
-	category string
+	err error
+}
+
+func (e errorMsg) Error() string {
+	return e.err.Error()
 }
