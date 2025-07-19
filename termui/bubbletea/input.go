@@ -111,14 +111,26 @@ func (i *InputComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the input component
 func (i *InputComponent) View() string {
+	// Create a clean input field with border like Gemini CLI
+
+	// Create the input field with border
+	inputStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(0, 1).
+		Width(i.width - 4)
+
 	var prompt string
 	if i.thinking {
-		prompt = i.promptStyle.Render("⏳ ")
+		prompt = i.promptStyle.Render("⏳")
 	} else {
 		prompt = i.promptStyle.Render(i.prompt)
 	}
 
-	return fmt.Sprintf("%s%s", prompt, i.textInput.View())
+	// Combine prompt and input
+	inputContent := fmt.Sprintf("%s %s", prompt, i.textInput.View())
+
+	return inputStyle.Render(inputContent)
 }
 
 // SetAgent sets the agent reference

@@ -662,43 +662,88 @@ func (app *BubbleTeaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the main UI
 func (app *BubbleTeaApp) View() string {
 	if !app.ready {
-		return "Initializing Bubble Tea UI..."
+		return "Initializing Sketch..."
 	}
 
-	// Create a layout with all components
-	var layout strings.Builder
+	// Calculate available space for chat view
+	chatHeight := app.height - 10 // Reserve more space for better spacing and separator
 
-	// Header with URL and help text
-	header := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("12")).
+	// Create header with clean styling like Gemini CLI
+	headerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("39")).
 		Bold(true).
 		PaddingLeft(1).
-		PaddingRight(1).
-		Width(app.width).
-		Render(fmt.Sprintf("🌐 %s/\n💬 type 'help' for help", app.httpURL))
+		MarginBottom(1)
 
-	layout.WriteString(header)
-	layout.WriteString("\n\n")
+	header := headerStyle.Render(fmt.Sprintf("sketch %s", app.httpURL))
 
-	// Main chat view (if initialized)
+	// Create warning/info bar if needed (like Gemini CLI's directory warning)
+	var infoBar string
+	if app.currentSlug != "" {
+		infoStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("214")).
+			Background(lipgloss.Color("58")).
+			Padding(0, 1).
+			Width(app.width).
+			MarginBottom(1)
+		infoBar = infoStyle.Render(fmt.Sprintf("Working on: %s", app.currentSlug))
+	}
+
+	// Main chat view with proper height
+	var chatContent string
 	if app.chatView != nil {
-		chatContent := app.chatView.View()
-		layout.WriteString(chatContent)
-		layout.WriteString("\n")
+		// Update chat view height
+		if messagesComp, ok := app.chatView.(*MessagesComponent); ok {
+			messagesComp.height = chatHeight
+			messagesComp.viewport.Height = chatHeight
+		}
+		chatContent = app.chatView.View()
 	}
 
-	// Status bar (if initialized)
+	// Status bar at bottom
+	var statusContent string
 	if app.statusBar != nil {
-		statusContent := app.statusBar.View()
-		layout.WriteString(statusContent)
-		layout.WriteString("\n")
+		statusContent = app.statusBar.View()
 	}
 
-	// Input component (if initialized)
+	// Input component at very bottom
+	var inputContent string
 	if app.inputView != nil {
-		inputContent := app.inputView.View()
-		layout.WriteString(inputContent)
+		inputContent = app.inputView.View()
 	}
+
+	// Create a separator line before status bar
+	separatorStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240"))
+	separator := separatorStyle.Render(strings.Repeat("─", app.width))
+
+	// Combine all components with proper spacing
+	var layout strings.Builder
+
+	// Header section
+	layout.WriteString(header)
+	layout.WriteString("\n\n") // Extra space after header
+
+	// Info bar if present
+	if infoBar != "" {
+		layout.WriteString(infoBar)
+		layout.WriteString("\n\n") // Extra space after info bar
+	}
+
+	// Main chat content
+	layout.WriteString(chatContent)
+	layout.WriteString("\n\n") // Space before separator
+
+	// Separator line
+	layout.WriteString(separator)
+	layout.WriteString("\n")
+
+	// Status bar
+	layout.WriteString(statusContent)
+	layout.WriteString("\n\n") // Space before input
+
+	// Input field
+	layout.WriteString(inputContent)
 
 	return layout.String()
 }
@@ -843,40 +888,52 @@ func NewMessagesComponent() UIComponent {
 	vp.SetContent("Welcome to Sketch! Type your message below.")
 
 	return &MessagesComponent{
-		viewport: vp,
-		messages: []DisplayMessage{},
+		viewport:       vp,
+		messages:       []DisplayMessage{},
+		messageCache:   make(map[int]string),
+		maxHistorySize: 1000,
+		toolRenderer:   NewToolTemplateRenderer(),
 		userStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("12")).
-			Bold(true),
+			Foreground(lipgloss.Color("39")).
+			Bold(true).
+			PaddingLeft(1).
+			MarginBottom(1),
 		agentStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("5")).
-			Bold(true),
+			Foreground(lipgloss.Color("35")).
+			Bold(true).
+			PaddingLeft(1).
+			MarginBottom(1),
 		systemStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8")),
+			Foreground(lipgloss.Color("214")).
+			PaddingLeft(1).
+			MarginBottom(1),
 		errorStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("9")).
-			Bold(true),
+			Foreground(lipgloss.Color("196")).
+			Bold(true).
+			PaddingLeft(1).
+			MarginBottom(1),
 	}
 }
 
 func NewInputComponent() UIComponent {
 	// Create a text input for user input
 	ti := textinput.New()
-	ti.Placeholder = "Type your message here..."
+	ti.Placeholder = "Type your message or /path/to/file"
 	ti.Focus()
-	ti.CharLimit = 1000
+	ti.CharLimit = 2000
 	ti.Width = 80
 
 	return &InputComponent{
 		textInput:    ti,
 		history:      []string{},
 		historyIndex: -1,
-		prompt:       "> ",
+		prompt:       "▶",
 		thinking:     false,
 		multiLine:    false,
 		promptStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("12")).
-			Bold(true),
+			Foreground(lipgloss.Color("39")).
+			Bold(true).
+			PaddingRight(1),
 		inputStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("15")),
 	}

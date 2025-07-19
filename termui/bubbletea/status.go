@@ -29,7 +29,7 @@ type StatusComponent struct {
 }
 
 // NewStatusComponent creates a new status component
-func NewStatusComponent() *StatusComponent {
+func NewStatusComponent() UIComponent {
 	return &StatusComponent{
 		startTime: time.Now(),
 		stateStyle: lipgloss.NewStyle().
@@ -64,31 +64,47 @@ func (s *StatusComponent) View() string {
 		return ""
 	}
 
-	var status strings.Builder
+	// Create a clean status bar like Gemini CLI
+	leftStatus := ""
+	rightStatus := ""
 
-	// Create a horizontal rule
-	hr := strings.Repeat("─", s.width)
-	status.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(hr))
-	status.WriteString("\n")
-
-	// Display current state
-	stateText := fmt.Sprintf("State: %s", s.currentState)
-	status.WriteString(s.stateStyle.Render(stateText))
-	status.WriteString("  ")
-
-	// Display session duration
-	duration := time.Since(s.startTime).Round(time.Second)
-	durationText := fmt.Sprintf("Session: %s", duration)
-	status.WriteString(s.operationsStyle.Render(durationText))
-	status.WriteString("  ")
-
-	// Display outstanding operations if any
-	if len(s.outstandingCalls) > 0 {
-		opsText := fmt.Sprintf("Pending: %s", strings.Join(s.outstandingCalls, ", "))
-		status.WriteString(s.operationsStyle.Render(opsText))
+	// Left side: current state and pending operations
+	if s.currentState != "" {
+		leftStatus = s.currentState
+	} else {
+		leftStatus = "ready"
 	}
 
-	return status.String()
+	if len(s.outstandingCalls) > 0 {
+		leftStatus += fmt.Sprintf(" (%s)", strings.Join(s.outstandingCalls, ", "))
+	}
+
+	// Right side: session info
+	duration := time.Since(s.startTime).Round(time.Second)
+	rightStatus = fmt.Sprintf("session: %s", duration)
+
+	// Create the status bar with proper spacing
+	statusStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("243")).
+		Background(lipgloss.Color("235")).
+		Padding(0, 1).
+		Width(s.width)
+
+	// Calculate spacing to push right status to the right
+	leftStyled := s.stateStyle.Render(leftStatus)
+	rightStyled := s.operationsStyle.Render(rightStatus)
+
+	// Calculate the number of spaces needed
+	contentWidth := lipgloss.Width(leftStyled) + lipgloss.Width(rightStyled)
+	spacesNeeded := s.width - contentWidth - 4 // Account for padding
+	if spacesNeeded < 1 {
+		spacesNeeded = 1
+	}
+
+	spaces := strings.Repeat(" ", spacesNeeded)
+	statusContent := leftStyled + spaces + rightStyled
+
+	return statusStyle.Render(statusContent)
 }
 
 // SetAgent sets the agent reference

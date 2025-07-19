@@ -224,71 +224,170 @@ func (m *MessagesComponent) renderMessage(msg DisplayMessage) string {
 
 // renderUserMessage renders a user message
 func (m *MessagesComponent) renderUserMessage(msg DisplayMessage) string {
-	return m.userStyle.Render("🦸 You:") + " " + msg.Content
+	// Create message content with proper wrapping
+	content := m.wrapText(msg.Content, m.width-8) // Account for border and padding
+
+	// Create the message box with border
+	messageStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("39")).
+		Padding(1, 2).
+		MarginBottom(1).
+		Width(m.width - 4)
+
+	// User header
+	header := m.userStyle.Render("▶ You")
+
+	// Combine header and content
+	fullContent := header + "\n\n" + content
+
+	return messageStyle.Render(fullContent)
 }
 
 // renderAgentMessage renders an agent message
 func (m *MessagesComponent) renderAgentMessage(msg DisplayMessage) string {
-	prefix := "🕴️ Agent:"
+	// Create message content with proper wrapping
+	content := m.wrapText(msg.Content, m.width-8) // Account for border and padding
+
+	// Create the message box with border
+	messageStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("35")).
+		Padding(1, 2).
+		MarginBottom(1).
+		Width(m.width - 4)
+
+	// Agent header
+	agentLabel := "▶ Agent"
 	if msg.Thinking {
-		prefix = "⏳ Agent (thinking):"
+		agentLabel = "⏳ Agent (thinking)"
 	}
-	return m.agentStyle.Render(prefix) + " " + msg.Content
+	header := m.agentStyle.Render(agentLabel)
+
+	// Combine header and content
+	fullContent := header + "\n\n" + content
+
+	return messageStyle.Render(fullContent)
 }
 
 // renderToolMessage renders a tool use message
 func (m *MessagesComponent) renderToolMessage(msg DisplayMessage) string {
-	if m.toolRenderer != nil {
-		// Convert to loop.AgentMessage for rendering
-		agentMsg := &loop.AgentMessage{
-			Type:       loop.ToolUseMessageType,
-			ToolName:   msg.ToolName,
-			ToolInput:  msg.ToolInput,
-			ToolResult: msg.ToolResult,
-			ToolError:  msg.ToolError,
-		}
-		return m.toolRenderer.RenderTool(agentMsg)
+	var content strings.Builder
+
+	// Tool header
+	toolLabel := fmt.Sprintf("🛠️ %s", msg.ToolName)
+	header := m.systemStyle.Render(toolLabel)
+	content.WriteString(header)
+	content.WriteString("\n\n")
+
+	// Tool input with proper wrapping
+	if msg.ToolInput != "" {
+		inputContent := m.wrapText(msg.ToolInput, m.width-8)
+		inputStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("243")).
+			Italic(true)
+		content.WriteString("Input: " + inputStyle.Render(inputContent))
+		content.WriteString("\n\n")
 	}
 
-	// Fallback rendering
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("🛠️ %s: %s\n", msg.ToolName, msg.ToolInput))
+	// Tool result or error
 	if msg.ToolError {
-		result.WriteString(m.errorStyle.Render("❌ Error: " + msg.ToolResult))
-	} else {
-		result.WriteString(msg.ToolResult)
+		errorContent := m.wrapText(msg.ToolResult, m.width-8)
+		errorStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196")).
+			Bold(true)
+		content.WriteString("❌ Error: " + errorStyle.Render(errorContent))
+	} else if msg.ToolResult != "" {
+		resultContent := m.wrapText(msg.ToolResult, m.width-8)
+		resultStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252"))
+		content.WriteString("Result: " + resultStyle.Render(resultContent))
 	}
-	return result.String()
+
+	// Create the message box with border
+	messageStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("214")).
+		Padding(1, 2).
+		MarginBottom(1).
+		Width(m.width - 4)
+
+	return messageStyle.Render(content.String())
 }
 
 // renderErrorMessage renders an error message
 func (m *MessagesComponent) renderErrorMessage(msg DisplayMessage) string {
-	return m.errorStyle.Render("❌ Error: " + msg.Content)
+	// Create message content with proper wrapping
+	content := m.wrapText(msg.Content, m.width-8) // Account for border and padding
+
+	// Create the message box with border
+	messageStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("196")).
+		Padding(1, 2).
+		MarginBottom(1).
+		Width(m.width - 4)
+
+	// Error header
+	header := m.errorStyle.Render("❌ Error")
+
+	// Combine header and content
+	fullContent := header + "\n\n" + content
+
+	return messageStyle.Render(fullContent)
 }
 
 // renderSystemMessage renders a system message
 func (m *MessagesComponent) renderSystemMessage(msg DisplayMessage) string {
-	return m.systemStyle.Render("ℹ️ " + msg.Content)
+	// Create message content with proper wrapping
+	content := m.wrapText(msg.Content, m.width-8) // Account for border and padding
+
+	// Create the message box with border
+	messageStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("243")).
+		Padding(1, 2).
+		MarginBottom(1).
+		Width(m.width - 4)
+
+	// System header
+	header := m.systemStyle.Render("ℹ️ System")
+
+	// Combine header and content
+	fullContent := header + "\n\n" + content
+
+	return messageStyle.Render(fullContent)
 }
 
 // renderCommitMessage renders a git commit message
 func (m *MessagesComponent) renderCommitMessage(msg DisplayMessage) string {
-	var result strings.Builder
-	result.WriteString(m.systemStyle.Render("📝 Git Commits:"))
-	result.WriteString("\n")
+	var content strings.Builder
+
+	// Commit header
+	header := m.systemStyle.Render("📝 Git Commits")
+	content.WriteString(header)
+	content.WriteString("\n\n")
 
 	for _, commit := range msg.Commits {
-		result.WriteString(fmt.Sprintf("  %s %s\n",
+		content.WriteString(fmt.Sprintf("%s %s\n",
 			m.userStyle.Render(commit.Hash[:7]),
 			commit.Subject))
 
 		if commit.PushedBranch != "" {
-			result.WriteString(m.systemStyle.Render(
-				fmt.Sprintf("  Pushed to branch: %s\n", commit.PushedBranch)))
+			content.WriteString(fmt.Sprintf("Pushed to branch: %s\n", commit.PushedBranch))
 		}
+		content.WriteString("\n")
 	}
 
-	return result.String()
+	// Create the message box with border
+	messageStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("35")).
+		Padding(1, 2).
+		MarginBottom(1).
+		Width(m.width - 4)
+
+	return messageStyle.Render(content.String())
 }
 
 // AddMessage adds a message to the display
@@ -391,6 +490,33 @@ func (m *MessagesComponent) HandleError(msg *loop.AgentMessage) tea.Cmd {
 
 	m.AddMessage(displayMsg)
 	return nil
+}
+
+// wrapText wraps text to fit within the specified width
+func (m *MessagesComponent) wrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+
+	var result strings.Builder
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return text
+	}
+
+	currentLine := words[0]
+	for _, word := range words[1:] {
+		if len(currentLine)+1+len(word) <= width {
+			currentLine += " " + word
+		} else {
+			result.WriteString(currentLine)
+			result.WriteString("\n")
+			currentLine = word
+		}
+	}
+	result.WriteString(currentLine)
+
+	return result.String()
 }
 
 // key is a helper struct for viewport key mapping
