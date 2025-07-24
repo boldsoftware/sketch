@@ -175,3 +175,69 @@ It is right here in this repository!
 Have a look around and mod away.
 
 If you want to run Sketch entirely without the sketch.dev service, you can set the flag `-skaband-addr=""` and then provide an `ANTHROPIC_API_KEY` environment variable. (More LLM services coming soon!)
+
+## MCP (Model Context Protocol) Debugging
+
+If you're experiencing issues with MCP connections, here are common problems and solutions:
+
+### 1. JSON Configuration Errors
+
+**Problem**: `invalid character 'a' looking for beginning of object key string`
+
+**Cause**: Malformed JSON in MCP configuration. Common mistake is using unquoted property names.
+
+**Incorrect**:
+```bash
+sketch -mcp '{"name": "server", "type": "stdio", "command": "/path/to/server", args: ["arg1"]}'
+```
+
+**Correct**:
+```bash
+sketch -mcp '{"name": "server", "type": "stdio", "command": "/path/to/server", "args": ["arg1"]}'
+```
+
+### 2. Connection Debugging
+
+Use the `-verbose` flag to get detailed connection information:
+
+```bash
+sketch -verbose -mcp '{"name": "server", "type": "sse", "url": "http://localhost:4000/mcp"}'
+```
+
+### 3. Testing MCP Servers
+
+Use the standalone MCP tool to test server connectivity:
+
+```bash
+# Build the tool
+cd cmd/mcp-tool && go build
+
+# Test server discovery
+./mcp-tool discover -mcp '{"name": "test", "type": "stdio", "command": "/path/to/server"}' -v
+
+# Test tool calls  
+./mcp-tool call -mcp '{"name": "test", "type": "stdio", "command": "/path/to/server"}' tool_name '{"arg": "value"}' -v
+```
+
+### 4. Common MCP Server Issues
+
+- **Connection refused**: Ensure the MCP server is running and accessible
+- **Timeout errors**: Check if the server responds to MCP protocol messages
+- **Transport errors**: Verify the correct transport type (stdio, http, sse) for your server
+
+### 5. MCP Configuration Examples
+
+**stdio transport**:
+```json
+{"name": "myserver", "type": "stdio", "command": "/path/to/server", "args": ["--flag"], "env": {"KEY": "value"}}
+```
+
+**HTTP transport**:
+```json
+{"name": "myserver", "type": "http", "url": "http://localhost:4000/mcp", "headers": {"Authorization": "Bearer token"}}
+```
+
+**SSE transport**:
+```json
+{"name": "myserver", "type": "sse", "url": "http://localhost:4000/mcp", "headers": {"Custom-Header": "value"}}
+```
