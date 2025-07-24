@@ -66,8 +66,8 @@ func ParseServerConfigs(ctx context.Context, configs []string) ([]ServerConfig, 
 	for i, configStr := range configs {
 		var config ServerConfig
 		if err := json.Unmarshal([]byte(configStr), &config); err != nil {
-			slog.ErrorContext(ctx, "Failed to parse MCP server config", "config", configStr, "error", err)
-			errors = append(errors, fmt.Errorf("config %d: %w", i, err))
+			slog.ErrorContext(ctx, "Failed to parse MCP server config", "config", configStr, "error", err, "config_length", len(configStr), "config_bytes", []byte(configStr)[:min(100, len(configStr))])
+			errors = append(errors, fmt.Errorf("config %d: JSON parse error for config '%s': %w", i, configStr, err))
 			continue
 		}
 		// Require a name
@@ -103,7 +103,7 @@ func (m *MCPManager) ConnectToServerConfigs(ctx context.Context, serverConfigs [
 
 	for _, config := range serverConfigs {
 		go func(cfg ServerConfig) {
-			slog.InfoContext(ctx, "Connecting to MCP server", "server", cfg.Name, "type", cfg.Type, "url", cfg.URL, "command", cfg.Command)
+			slog.InfoContext(ctx, "Connecting to MCP server", "server", cfg.Name, "type", cfg.Type, "url", cfg.URL, "command", cfg.Command, "args", cfg.Args, "env", cfg.Env, "headers", cfg.Headers)
 			tools, originalToolNames, err := m.connectToServerWithNames(ctxWithTimeout, cfg)
 			results <- result{
 				tools:         tools,
@@ -209,12 +209,12 @@ func (m *MCPManager) connectToServer(ctx context.Context, config ServerConfig) (
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create MCP client: %w", err)
+		return nil, fmt.Errorf("failed to create MCP client (type=%s, url=%s, command=%s): %w", config.Type, config.URL, config.Command, err)
 	}
 
 	// Start the client first
 	if err := mcpClient.Start(ctx); err != nil {
-		return nil, fmt.Errorf("failed to start MCP client: %w", err)
+		return nil, fmt.Errorf("failed to start MCP client (type=%s, server=%s): %w", config.Type, config.Name, err)
 	}
 
 	// Initialize the client
@@ -229,14 +229,14 @@ func (m *MCPManager) connectToServer(ctx context.Context, config ServerConfig) (
 		},
 	}
 	if _, err := mcpClient.Initialize(ctx, initReq); err != nil {
-		return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
+		return nil, fmt.Errorf("failed to initialize MCP client (server=%s): %w", config.Name, err)
 	}
 
 	// Get available tools
 	toolsReq := mcp.ListToolsRequest{}
 	toolsResp, err := mcpClient.ListTools(ctx, toolsReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list tools: %w", err)
+		return nil, fmt.Errorf("failed to list tools (server=%s): %w", config.Name, err)
 	}
 
 	// Convert MCP tools to llm.Tool
