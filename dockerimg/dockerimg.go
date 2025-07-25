@@ -918,6 +918,9 @@ func buildLayeredImage(ctx context.Context, imgName, baseImage, gitRoot string, 
 	}
 
 	line("FROM %s", baseImage)
+	// TODO: this is a total hack. The base image should have git, but it seems
+	// that in some cases we are using a base image that does not have it.
+	line("RUN apt-get update && apt-get install -y git")
 	line("COPY . /git-ref")
 
 	for _, module := range goModules {

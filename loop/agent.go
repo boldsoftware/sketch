@@ -1376,7 +1376,7 @@ func (a *Agent) initConvoWithUsage(usage *conversation.CumulativeUsage) *convers
 	convo.Tools = []*llm.Tool{
 		bashTool.Tool(), claudetool.Keyword, claudetool.Patch(a.patchCallback),
 		claudetool.Think, claudetool.TodoRead, claudetool.TodoWrite, a.setSlugTool(), a.commitMessageStyleTool(), makeDoneTool(a.codereview),
-		a.codereview.Tool(), claudetool.AboutSketch,
+		a.codereview.Tool(), claudetool.AboutSketch, (&claudetool.NmapTool{}).Tool(),
 	}
 
 	// One-shot mode is non-interactive, multiple choice requires human response
