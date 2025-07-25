@@ -550,29 +550,36 @@ func runInContainerMode(ctx context.Context, flags CLIFlags, logFile *os.File) e
 	return setupAndRunAgent(ctx, flags, modelURL, apiKey, pubKey, true, logFile)
 }
 
-// / runInUnsafeMode handles execution on the host machine without Docker.
+// runInUnsafeMode handles execution on the host machine without Docker.
 // This mode is used when the -unsafe flag is provided.
 func runInUnsafeMode(ctx context.Context, flags CLIFlags, logFile *os.File) error {
 	// Check if we need to get the API key from environment
 	var apiKey, modelURL, pubKey string
-
 	if flags.skabandAddr == "" {
-		// Find the model in the registry to determine which API key to use.
-		model := oai.ModelByUserName(flags.modelName)
-
-		if model != nil {
-			// Model was found in the oai registry.
-			apiKey = cmp.Or(os.Getenv(model.APIKeyEnv), flags.llmAPIKey)
+		// Handle different model types when not using skaband
+		if flags.modelName == "gemini" {
+			// Handle Gemini model specifically
+			apiKey = cmp.Or(os.Getenv(gem.GeminiAPIKeyEnv), flags.llmAPIKey)
 			if apiKey == "" {
-				return fmt.Errorf("%s environment variable is not set, and -llm-api-key flag not provided", model.APIKeyEnv)
+				return fmt.Errorf("%s environment variable is not set, and -llm-api-key flag not provided", gem.GeminiAPIKeyEnv)
 			}
 		} else {
-			// If the model is not in the oai registry, it might be a bifrost model (like Azure).
-			// The bifrost adapter handles API keys automatically, so we just need to avoid an error here.
-			// We set a dummy value to pass the checks.
-			apiKey = "not-empty"
-		}
+			// Find the model in the registry to determine which API key to use.
+			model := oai.ModelByUserName(flags.modelName)
 
+			if model != nil {
+				// Model was found in the oai registry.
+				apiKey = cmp.Or(os.Getenv(model.APIKeyEnv), flags.llmAPIKey)
+				if apiKey == "" {
+					return fmt.Errorf("%s environment variable is not set, and -llm-api-key flag not provided", model.APIKeyEnv)
+				}
+			} else {
+				// If the model is not in the oai registry, it might be a bifrost model (like Azure).
+				// The bifrost adapter handles API keys automatically, so we just need to avoid an error here.
+				// We set a dummy value to pass the checks.
+				apiKey = "not-empty"
+			}
+		}
 	} else {
 		// Connect to skaband
 		privKey, err := skabandclient.LoadOrCreatePrivateKey(skabandclient.DefaultKeyPath())
@@ -591,8 +598,6 @@ func runInUnsafeMode(ctx context.Context, flags CLIFlags, logFile *os.File) erro
 	return setupAndRunAgent(ctx, flags, modelURL, apiKey, pubKey, false, logFile)
 }
 
-// setupAndRunAgent handles the common logic for setting up and running the agent
-// in both container and unsafe modes.
 func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pubKey string, inInsideSketch bool, logFile *os.File) error {
 	var client *http.Client
 
