@@ -13,3 +13,4 @@ sketch
 /kiro/**
 /kiro
 .kiro/
+.env

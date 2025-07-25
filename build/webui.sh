@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Change to the project root directory
+cd "$(dirname "$0")/.."
+
 echo "[$(date '+%H:%M:%S')] Starting webui build..."
 
 # Use a content-based hash of the webui dir to avoid unnecessary rebuilds.
