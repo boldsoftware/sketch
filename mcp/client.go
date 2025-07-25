@@ -15,6 +15,16 @@ import (
 	"sketch.dev/llm"
 )
 
+const (
+	// DefaultMCPConnectionTimeout is the default timeout for connecting to MCP servers
+	// Increased from 10s to 120s to accommodate slower servers like Tidewave that
+	// require more time for SSE connection setup and initialization handshake
+	DefaultMCPConnectionTimeout = 120 * time.Second
+
+	// DefaultMCPToolTimeout is the default timeout for executing MCP tool calls
+	DefaultMCPToolTimeout = 120 * time.Second
+)
+
 // ServerConfig represents the configuration for an MCP server
 type ServerConfig struct {
 	Name    string            `json:"name,omitempty"`
@@ -297,7 +307,7 @@ func (m *MCPManager) convertMCPTools(serverName string, mcpClient *client.Client
 func (m *MCPManager) executeMCPTool(ctx context.Context, mcpClient *client.Client, toolName string, input json.RawMessage) (any, error) {
 	// Add timeout for tool execution
 	// TODO: Expose the timeout as a tool call argument.
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 120*time.Second)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, DefaultMCPToolTimeout)
 	defer cancel()
 
 	// Parse input arguments

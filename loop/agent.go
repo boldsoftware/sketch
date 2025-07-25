@@ -1406,7 +1406,9 @@ func (a *Agent) initConvoWithUsage(usage *conversation.CumulativeUsage) *convers
 				}
 			}
 		}
-		mcpConnections, mcpErrors := a.mcpManager.ConnectToServerConfigs(ctx, serverConfigs, 10*time.Second, parseErrors)
+		// Use a longer timeout for MCP server connections to accommodate slower servers like Tidewave
+		// that require more time for SSE connection setup and initialization handshake
+		mcpConnections, mcpErrors := a.mcpManager.ConnectToServerConfigs(ctx, serverConfigs, mcp.DefaultMCPConnectionTimeout, parseErrors)
 
 		if len(mcpErrors) > 0 {
 			for _, err := range mcpErrors {
