@@ -348,6 +348,7 @@ func (a *Account) configureProvider(provider schemas.ModelProvider) error {
 	}
 
 	switch provider {
+	
 	case schemas.OpenAI:
 		apiKey := os.Getenv("OPENAI_API_KEY")
 		if apiKey == "" {

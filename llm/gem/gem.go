@@ -140,6 +140,13 @@ func convertJSONSchemaToGeminiSchema(schemaJSON map[string]any) gemini.Schema {
 	return schema
 }
 
+// NewService returns a new Service instance with the given API key.
+func NewService(apiKey string) *Service {
+	return &Service{
+		APIKey: apiKey,
+	}
+}
+
 // buildGeminiRequest converts Sketch's llm.Request to Gemini's request format
 func (s *Service) buildGeminiRequest(req *llm.Request) (*gemini.Request, error) {
 	gemReq := &gemini.Request{}
@@ -463,10 +470,13 @@ func (s *Service) TokenContextWindow() int {
 // Do sends a request to Gemini.
 func (s *Service) Do(ctx context.Context, ir *llm.Request) (*llm.Response, error) {
 	// Log the incoming request for debugging
-	slog.DebugContext(ctx, "gemini_request",
+	slog.InfoContext(ctx, "gemini_request_starting",
 		"message_count", len(ir.Messages),
 		"tool_count", len(ir.Tools),
-		"system_count", len(ir.System))
+		"system_count", len(ir.System),
+		"api_key_set", s.APIKey != "",
+		"api_key_length", len(s.APIKey),
+		"model", s.Model)
 
 	// Log tool-related information if any tools are present
 	if len(ir.Tools) > 0 {
