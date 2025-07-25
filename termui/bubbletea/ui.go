@@ -234,15 +234,13 @@ func (ui *BubbleTeaUI) initializeComponents() error {
 	ui.app.inputView.SetAgent(ui.app.agent)
 	ui.app.statusBar.SetAgent(ui.app.agent)
 
-	// Set up message routing
+	// Set up message routing - ONLY MessagesComponent handles display messages
 	ui.app.router.RegisterHandler("agent_message", ui.app.chatView.(MessageHandler))
 	ui.app.router.RegisterHandler("tool_use", ui.app.chatView.(MessageHandler))
 	ui.app.router.RegisterHandler("system_message", ui.app.chatView.(MessageHandler))
 
-	// Also register input component as a message handler
-	ui.app.router.RegisterHandler("agent_message", ui.app.inputView.(MessageHandler))
-	ui.app.router.RegisterHandler("tool_use", ui.app.inputView.(MessageHandler))
-	ui.app.router.RegisterHandler("system_message", ui.app.inputView.(MessageHandler))
+	// InputComponent should NOT handle display messages - only manage its own state
+	// Remove the duplicate registrations that were causing rendering inefficiency
 
 	// Set up input component with URL
 	if inputComp, ok := ui.app.inputView.(*InputComponent); ok {
@@ -440,7 +438,6 @@ func (ui *BubbleTeaUI) processStateTransitions(ctx context.Context) {
 func (ui *BubbleTeaUI) RestoreOldState() error {
 	// Restore terminal title
 	ui.popTerminalTitle()
-
 	if ui.program != nil {
 		ui.program.Quit()
 	}
@@ -815,7 +812,16 @@ func (app *BubbleTeaApp) handleAgentMessage(msg agentMessageMsg) (tea.Model, tea
 
 // handleUserInput processes user text input
 func (app *BubbleTeaApp) handleUserInput(msg userInputMsg) (tea.Model, tea.Cmd) {
-	// Send input to the agent
+	// Route user message to MessagesComponent for display
+	if routedCmds := app.router.RouteMessage(msg); routedCmds != nil && len(routedCmds) > 0 {
+		// Send input to the agent and route to display
+		if app.ctx != nil {
+			app.agent.UserMessage(app.ctx, msg.input)
+		}
+		return app, tea.Batch(routedCmds...)
+	}
+
+	// Fallback: just send to agent if routing fails
 	if app.ctx != nil {
 		app.agent.UserMessage(app.ctx, msg.input)
 	}
@@ -883,9 +889,9 @@ func (app *BubbleTeaApp) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, t
 
 // Component constructors
 func NewMessagesComponent() UIComponent {
-	// Create a viewport for scrollable message display
+	// Create a viewport for scrollable message display with modern chat styling
 	vp := viewport.New(80, 20)
-	vp.SetContent("Welcome to Sketch! Type your message below.")
+	vp.SetContent("Welcome to Sketch! Start chatting below.")
 
 	return &MessagesComponent{
 		viewport:       vp,
@@ -893,25 +899,19 @@ func NewMessagesComponent() UIComponent {
 		messageCache:   make(map[int]string),
 		maxHistorySize: 1000,
 		toolRenderer:   NewToolTemplateRenderer(),
+		// Modern chat styling - vibrant colors for better distinction
 		userStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
-			Bold(true).
-			PaddingLeft(1).
-			MarginBottom(1),
+			Foreground(lipgloss.Color("#3B82F6")). // Modern blue
+			Bold(true),
 		agentStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("35")).
-			Bold(true).
-			PaddingLeft(1).
-			MarginBottom(1),
+			Foreground(lipgloss.Color("#10B981")). // Modern green
+			Bold(true),
 		systemStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214")).
-			PaddingLeft(1).
-			MarginBottom(1),
+			Foreground(lipgloss.Color("#F59E0B")). // Modern amber
+			Bold(true),
 		errorStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Bold(true).
-			PaddingLeft(1).
-			MarginBottom(1),
+			Foreground(lipgloss.Color("#EF4444")). // Modern red
+			Bold(true),
 	}
 }
 

@@ -160,42 +160,23 @@ func (i *InputComponent) SetPrompt(prompt string, thinking bool) {
 
 // HandleMessage implements MessageHandler
 func (i *InputComponent) HandleMessage(msg Message) tea.Cmd {
-	// Route message based on type
+	// InputComponent only needs to update its prompt state based on agent activity
+	// All display messages should go to MessagesComponent only
 	switch typedMsg := msg.(type) {
 	case agentMessageMsg:
-		return i.HandleAgentMessage(typedMsg.message)
-	case toolUseMsg:
-		return i.HandleToolUse(typedMsg.message)
-	case systemMessageMsg:
-		// Convert system message to error message for handling
-		agentMsg := &loop.AgentMessage{
-			Type:    loop.ErrorMessageType,
-			Content: typedMsg.content,
+		// Only update prompt state, don't process the message content
+		if typedMsg.message.Type == loop.AgentMessageType {
+			i.SetPrompt("", false) // Agent responded, no longer thinking
 		}
-		return i.HandleError(agentMsg)
+		return nil
+	case toolUseMsg:
+		// Only update thinking state, don't process the tool message
+		i.SetPrompt("", true) // Agent is using tools, show thinking state
+		return nil
+	case systemMessageMsg:
+		// Reset thinking state on system messages
+		i.SetPrompt("", false)
+		return nil
 	}
-	return nil
-}
-
-// HandleAgentMessage handles agent messages
-func (i *InputComponent) HandleAgentMessage(msg *loop.AgentMessage) tea.Cmd {
-	// Update thinking state based on message type
-	if msg.Type == loop.AgentMessageType {
-		i.SetPrompt("", false) // Agent responded, no longer thinking
-	}
-	return nil
-}
-
-// HandleToolUse handles tool use messages
-func (i *InputComponent) HandleToolUse(msg *loop.AgentMessage) tea.Cmd {
-	// Update thinking state based on tool use
-	i.SetPrompt("", true) // Agent is using tools, show thinking state
-	return nil
-}
-
-// HandleError handles error messages
-func (i *InputComponent) HandleError(msg *loop.AgentMessage) tea.Cmd {
-	// Reset thinking state on error
-	i.SetPrompt("", false)
 	return nil
 }

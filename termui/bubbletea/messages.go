@@ -222,151 +222,146 @@ func (m *MessagesComponent) renderMessage(msg DisplayMessage) string {
 	return rendered
 }
 
-// renderUserMessage renders a user message
+// renderUserMessage renders a user message in modern chat style
 func (m *MessagesComponent) renderUserMessage(msg DisplayMessage) string {
 	// Create message content with proper wrapping
-	content := m.wrapText(msg.Content, m.width-8) // Account for border and padding
+	content := m.wrapText(msg.Content, m.width-4) // Account for padding only
 
-	// Create the message box with border
-	messageStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("39")).
-		Padding(1, 2).
-		MarginBottom(1).
-		Width(m.width - 4)
-
-	// User header
+	// User header with modern styling - no borders, just color-coded title
 	header := m.userStyle.Render("▶ You")
 
-	// Combine header and content
-	fullContent := header + "\n\n" + content
+	// Create clean message layout without borders
+	messageContent := header + "\n" + content
 
-	return messageStyle.Render(fullContent)
+	// Add subtle padding and margin for readability
+	messageStyle := lipgloss.NewStyle().
+		PaddingLeft(2).
+		PaddingRight(2).
+		PaddingBottom(1).
+		MarginBottom(1)
+
+	return messageStyle.Render(messageContent)
 }
 
-// renderAgentMessage renders an agent message
+// renderAgentMessage renders an agent message in modern chat style
 func (m *MessagesComponent) renderAgentMessage(msg DisplayMessage) string {
 	// Create message content with proper wrapping
-	content := m.wrapText(msg.Content, m.width-8) // Account for border and padding
+	content := m.wrapText(msg.Content, m.width-4) // Account for padding only
 
-	// Create the message box with border
-	messageStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("35")).
-		Padding(1, 2).
-		MarginBottom(1).
-		Width(m.width - 4)
-
-	// Agent header
+	// Agent header with modern styling - no borders, just color-coded title
 	agentLabel := "▶ Agent"
 	if msg.Thinking {
 		agentLabel = "⏳ Agent (thinking)"
 	}
 	header := m.agentStyle.Render(agentLabel)
 
-	// Combine header and content
-	fullContent := header + "\n\n" + content
+	// Create clean message layout without borders
+	messageContent := header + "\n" + content
 
-	return messageStyle.Render(fullContent)
+	// Add subtle padding and margin for readability
+	messageStyle := lipgloss.NewStyle().
+		PaddingLeft(2).
+		PaddingRight(2).
+		PaddingBottom(1).
+		MarginBottom(1)
+
+	return messageStyle.Render(messageContent)
 }
 
-// renderToolMessage renders a tool use message
+// renderToolMessage renders a tool use message in modern chat style
 func (m *MessagesComponent) renderToolMessage(msg DisplayMessage) string {
 	var content strings.Builder
 
-	// Tool header
+	// Tool header with modern styling - no borders, just color-coded title
 	toolLabel := fmt.Sprintf("🛠️ %s", msg.ToolName)
 	header := m.systemStyle.Render(toolLabel)
 	content.WriteString(header)
-	content.WriteString("\n\n")
+	content.WriteString("\n")
 
 	// Tool input with proper wrapping
 	if msg.ToolInput != "" {
-		inputContent := m.wrapText(msg.ToolInput, m.width-8)
+		inputContent := m.wrapText(msg.ToolInput, m.width-4)
 		inputStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("243")).
 			Italic(true)
 		content.WriteString("Input: " + inputStyle.Render(inputContent))
-		content.WriteString("\n\n")
+		content.WriteString("\n")
 	}
 
 	// Tool result or error
 	if msg.ToolError {
-		errorContent := m.wrapText(msg.ToolResult, m.width-8)
+		errorContent := m.wrapText(msg.ToolResult, m.width-4)
 		errorStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("196")).
 			Bold(true)
 		content.WriteString("❌ Error: " + errorStyle.Render(errorContent))
 	} else if msg.ToolResult != "" {
-		resultContent := m.wrapText(msg.ToolResult, m.width-8)
+		resultContent := m.wrapText(msg.ToolResult, m.width-4)
 		resultStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("252"))
 		content.WriteString("Result: " + resultStyle.Render(resultContent))
 	}
 
-	// Create the message box with border
+	// Add subtle padding and margin for readability - no borders
 	messageStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("214")).
-		Padding(1, 2).
-		MarginBottom(1).
-		Width(m.width - 4)
+		PaddingLeft(2).
+		PaddingRight(2).
+		PaddingBottom(1).
+		MarginBottom(1)
 
 	return messageStyle.Render(content.String())
 }
 
-// renderErrorMessage renders an error message
+// renderErrorMessage renders an error message in modern chat style
 func (m *MessagesComponent) renderErrorMessage(msg DisplayMessage) string {
 	// Create message content with proper wrapping
-	content := m.wrapText(msg.Content, m.width-8) // Account for border and padding
+	content := m.wrapText(msg.Content, m.width-4) // Account for padding only
 
-	// Create the message box with border
-	messageStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("196")).
-		Padding(1, 2).
-		MarginBottom(1).
-		Width(m.width - 4)
-
-	// Error header
+	// Error header with modern styling - no borders, just color-coded title
 	header := m.errorStyle.Render("❌ Error")
 
-	// Combine header and content
-	fullContent := header + "\n\n" + content
+	// Create clean message layout without borders
+	messageContent := header + "\n" + content
 
-	return messageStyle.Render(fullContent)
+	// Add subtle padding and margin for readability
+	messageStyle := lipgloss.NewStyle().
+		PaddingLeft(2).
+		PaddingRight(2).
+		PaddingBottom(1).
+		MarginBottom(1)
+
+	return messageStyle.Render(messageContent)
 }
 
-// renderSystemMessage renders a system message
+// renderSystemMessage renders a system message in modern chat style
 func (m *MessagesComponent) renderSystemMessage(msg DisplayMessage) string {
 	// Create message content with proper wrapping
-	content := m.wrapText(msg.Content, m.width-8) // Account for border and padding
+	content := m.wrapText(msg.Content, m.width-4) // Account for padding only
 
-	// Create the message box with border
-	messageStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("243")).
-		Padding(1, 2).
-		MarginBottom(1).
-		Width(m.width - 4)
-
-	// System header
+	// System header with modern styling - no borders, just color-coded title
 	header := m.systemStyle.Render("ℹ️ System")
 
-	// Combine header and content
-	fullContent := header + "\n\n" + content
+	// Create clean message layout without borders
+	messageContent := header + "\n" + content
 
-	return messageStyle.Render(fullContent)
+	// Add subtle padding and margin for readability
+	messageStyle := lipgloss.NewStyle().
+		PaddingLeft(2).
+		PaddingRight(2).
+		PaddingBottom(1).
+		MarginBottom(1)
+
+	return messageStyle.Render(messageContent)
 }
 
-// renderCommitMessage renders a git commit message
+// renderCommitMessage renders a git commit message in modern chat style
 func (m *MessagesComponent) renderCommitMessage(msg DisplayMessage) string {
 	var content strings.Builder
 
-	// Commit header
+	// Commit header with modern styling - no borders, just color-coded title
 	header := m.systemStyle.Render("📝 Git Commits")
 	content.WriteString(header)
-	content.WriteString("\n\n")
+	content.WriteString("\n")
 
 	for _, commit := range msg.Commits {
 		content.WriteString(fmt.Sprintf("%s %s\n",
@@ -379,13 +374,12 @@ func (m *MessagesComponent) renderCommitMessage(msg DisplayMessage) string {
 		content.WriteString("\n")
 	}
 
-	// Create the message box with border
+	// Add subtle padding and margin for readability - no borders
 	messageStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("35")).
-		Padding(1, 2).
-		MarginBottom(1).
-		Width(m.width - 4)
+		PaddingLeft(2).
+		PaddingRight(2).
+		PaddingBottom(1).
+		MarginBottom(1)
 
 	return messageStyle.Render(content.String())
 }
@@ -444,6 +438,8 @@ func (m *MessagesComponent) HandleMessage(msg Message) tea.Cmd {
 			Content: typedMsg.content,
 		}
 		return m.HandleError(agentMsg)
+	case userInputMsg:
+		return m.HandleUserInput(typedMsg.input)
 	}
 	return nil
 }
@@ -486,6 +482,20 @@ func (m *MessagesComponent) HandleError(msg *loop.AgentMessage) tea.Cmd {
 		Type:      loop.ErrorMessageType,
 		Content:   msg.Content,
 		Timestamp: msg.Timestamp,
+	}
+
+	m.AddMessage(displayMsg)
+	return nil
+}
+
+// HandleUserInput handles user input messages
+func (m *MessagesComponent) HandleUserInput(input string) tea.Cmd {
+	// Convert to DisplayMessage
+	displayMsg := DisplayMessage{
+		Type:      loop.UserMessageType,
+		Content:   input,
+		Timestamp: time.Now(),
+		Sender:    "You",
 	}
 
 	m.AddMessage(displayMsg)
