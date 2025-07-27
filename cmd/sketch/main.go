@@ -21,6 +21,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"golang.org/x/term"
 	"sketch.dev/browser"
 	"sketch.dev/claudetool"
@@ -49,6 +51,7 @@ var (
 )
 
 func main() {
+	_ = godotenv.Load()
 	err := run()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v: %v\n", os.Args[0], err)
@@ -551,16 +554,31 @@ func runInContainerMode(ctx context.Context, flags CLIFlags, logFile *os.File) e
 // This mode is used when the -unsafe flag is provided.
 func runInUnsafeMode(ctx context.Context, flags CLIFlags, logFile *os.File) error {
 	// Check if we need to get the API key from environment
-	var apiKey, antURL, pubKey string
-
+	var apiKey, modelURL, pubKey string
 	if flags.skabandAddr == "" {
-		envName := "ANTHROPIC_API_KEY"
+		// Handle different model types when not using skaband
 		if flags.modelName == "gemini" {
-			envName = gem.GeminiAPIKeyEnv
-		}
-		apiKey = cmp.Or(os.Getenv(envName), flags.llmAPIKey)
-		if apiKey == "" {
-			return fmt.Errorf("%s environment variable is not set, -llm-api-key flag not provided", envName)
+			// Handle Gemini model specifically
+			apiKey = cmp.Or(os.Getenv(gem.GeminiAPIKeyEnv), flags.llmAPIKey)
+			if apiKey == "" {
+				return fmt.Errorf("%s environment variable is not set, and -llm-api-key flag not provided", gem.GeminiAPIKeyEnv)
+			}
+		} else {
+			// Find the model in the registry to determine which API key to use.
+			model := oai.ModelByUserName(flags.modelName)
+
+			if model != nil {
+				// Model was found in the oai registry.
+				apiKey = cmp.Or(os.Getenv(model.APIKeyEnv), flags.llmAPIKey)
+				if apiKey == "" {
+					return fmt.Errorf("%s environment variable is not set, and -llm-api-key flag not provided", model.APIKeyEnv)
+				}
+			} else {
+				// If the model is not in the oai registry, it might be a bifrost model (like Azure).
+				// The bifrost adapter handles API keys automatically, so we just need to avoid an error here.
+				// We set a dummy value to pass the checks.
+				apiKey = "not-empty"
+			}
 		}
 	} else {
 		// Connect to skaband
@@ -568,7 +586,7 @@ func runInUnsafeMode(ctx context.Context, flags CLIFlags, logFile *os.File) erro
 		if err != nil {
 			return err
 		}
-		pubKey, antURL, apiKey, err = skabandclient.Login(os.Stdout, privKey, flags.skabandAddr, flags.sessionID, flags.modelName)
+		pubKey, modelURL, apiKey, err = skabandclient.Login(os.Stdout, privKey, flags.skabandAddr, flags.sessionID, flags.modelName)
 		if err != nil {
 			return err
 		}
@@ -577,11 +595,9 @@ func runInUnsafeMode(ctx context.Context, flags CLIFlags, logFile *os.File) erro
 		flags.mcpServers = append(flags.mcpServers, skabandMcpConfiguration(flags))
 	}
 
-	return setupAndRunAgent(ctx, flags, antURL, apiKey, pubKey, false, logFile)
+	return setupAndRunAgent(ctx, flags, modelURL, apiKey, pubKey, false, logFile)
 }
 
-// setupAndRunAgent handles the common logic for setting up and running the agent
-// in both container and unsafe modes.
 func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pubKey string, inInsideSketch bool, logFile *os.File) error {
 	var client *http.Client
 

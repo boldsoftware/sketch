@@ -147,7 +147,11 @@ func (m Model) GenerateContent(ctx context.Context, req *Request) (*Response, er
 	if err != nil {
 		return nil, fmt.Errorf("marshaling request: %w", err)
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/%s:generateContent?key=%s", m.endpoint(), m.Model, m.APIKey), bytes.NewReader(reqBytes))
+	url := fmt.Sprintf("%s/%s:generateContent?key=%s", m.endpoint(), m.Model, m.APIKey)
+	fmt.Printf("DEBUG: Making Gemini request to URL: %s\n", url)
+	fmt.Printf("DEBUG: API Key length: %d\n", len(m.APIKey))
+	fmt.Printf("DEBUG: Model: %s\n", m.Model)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(reqBytes))
 	if err != nil {
 		return nil, fmt.Errorf("creating HTTP request: %w", err)
 	}
