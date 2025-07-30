@@ -694,7 +694,7 @@ func (app *BubbleTeaApp) View() string {
 		MarginBottom(1)
 
 	// ASCII art style header
-	headerText := fmt.Sprintf(" KIFARU PENTEST FRAMEWORK ")
+	headerText := fmt.Sprintf(" Kifaru Pentest Framework ")
 	if app.httpURL != "" {
 		headerText += fmt.Sprintf(" | %s", app.httpURL)
 	}
@@ -711,7 +711,7 @@ func (app *BubbleTeaApp) View() string {
 			Border(lipgloss.NormalBorder()).
 			BorderForeground(DarkGreen).
 			MarginBottom(1)
-		infoBar = infoStyle.Render(fmt.Sprintf("🔍 TARGET: %s 🔍", strings.ToUpper(app.currentSlug)))
+		infoBar = infoStyle.Render(fmt.Sprintf("Target: %s", strings.ToUpper(app.currentSlug)))
 	}
 
 	// Main chat view with proper height

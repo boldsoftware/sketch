@@ -237,7 +237,7 @@ func (m *MessagesComponent) renderUserMessage(msg DisplayMessage) string {
 
 	// User message header with timestamp and hacker styling
 	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] 👤 USER ══╗", timestamp)
+	header := fmt.Sprintf("╔══ [%s] 👤 You ══╗", timestamp)
 	content.WriteString(m.userStyle.Render(header))
 	content.WriteString("\n")
 
@@ -261,7 +261,7 @@ func (m *MessagesComponent) renderAgentMessage(msg DisplayMessage) string {
 
 	// Agent message header with timestamp and hacker styling
 	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] 🤖 KIFARU AI ══╗", timestamp)
+	header := fmt.Sprintf("╔══ [%s] Kifaru ══╗", timestamp)
 	content.WriteString(m.agentStyle.Render(header))
 	content.WriteString("\n")
 
@@ -326,7 +326,7 @@ func (m *MessagesComponent) renderErrorMessage(msg DisplayMessage) string {
 
 	// Error message header with timestamp and hacker styling
 	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] ❌ ERROR ══╗", timestamp)
+	header := fmt.Sprintf("╔══ [%s] ❌ Error ══╗", timestamp)
 	content.WriteString(m.errorStyle.Render(header))
 	content.WriteString("\n")
 
@@ -350,7 +350,7 @@ func (m *MessagesComponent) renderSystemMessage(msg DisplayMessage) string {
 
 	// System message header with timestamp and hacker styling
 	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] ℹ️ SYSTEM ══╗", timestamp)
+	header := fmt.Sprintf("╔══ [%s] ℹ️ System ══╗", timestamp)
 	content.WriteString(m.systemStyle.Render(header))
 	content.WriteString("\n")
 
@@ -374,7 +374,7 @@ func (m *MessagesComponent) renderCommitMessage(msg DisplayMessage) string {
 
 	// Commit message header with timestamp and hacker styling
 	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] 📝 GIT COMMITS ══╗", timestamp)
+	header := fmt.Sprintf("╔══ [%s] 📝 Git ══╗", timestamp)
 	content.WriteString(m.systemStyle.Render(header))
 	content.WriteString("\n")
 
@@ -574,7 +574,7 @@ func (m *MessagesComponent) renderBashToolInput(content *strings.Builder, input 
 			content.WriteString(m.systemStyle.Render("║ "))
 			content.WriteString(cmdHeaderStyle.Render("💻 Command:"))
 			content.WriteString("\n")
-			
+
 			// Command with syntax highlighting style
 			cmdStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#39FF14")).
@@ -586,7 +586,7 @@ func (m *MessagesComponent) renderBashToolInput(content *strings.Builder, input 
 				content.WriteString(cmdStyle.Render("$ " + line))
 				content.WriteString("\n")
 			}
-			
+
 			// Add separator
 			content.WriteString(m.systemStyle.Render("╠"))
 			content.WriteString(m.systemStyle.Render(strings.Repeat("═", 78)))
@@ -613,7 +613,7 @@ func (m *MessagesComponent) renderPentestToolInput(content *strings.Builder, inp
 			content.WriteString(m.systemStyle.Render("║ "))
 			content.WriteString(actionHeaderStyle.Render("🎯 Action:"))
 			content.WriteString("\n")
-			
+
 			// Action with highlighting
 			actionStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#FF6B35")).
@@ -623,7 +623,7 @@ func (m *MessagesComponent) renderPentestToolInput(content *strings.Builder, inp
 			content.WriteString(m.systemStyle.Render("║ "))
 			content.WriteString(actionStyle.Render(strings.ToUpper(action)))
 			content.WriteString("\n")
-			
+
 			// Data section if present
 			if data, ok := pentestInput["data"]; ok && data != nil {
 				// Data header
@@ -633,7 +633,7 @@ func (m *MessagesComponent) renderPentestToolInput(content *strings.Builder, inp
 				content.WriteString(m.systemStyle.Render("║ "))
 				content.WriteString(dataHeaderStyle.Render("📊 Data:"))
 				content.WriteString("\n")
-				
+
 				// Format data as JSON with indentation
 				if dataBytes, err := json.MarshalIndent(data, "", "  "); err == nil {
 					dataStyle := lipgloss.NewStyle().
@@ -649,7 +649,7 @@ func (m *MessagesComponent) renderPentestToolInput(content *strings.Builder, inp
 					}
 				}
 			}
-			
+
 			// Add separator
 			content.WriteString(m.systemStyle.Render("╠"))
 			content.WriteString(m.systemStyle.Render(strings.Repeat("═", 78)))
@@ -670,7 +670,7 @@ func (m *MessagesComponent) renderGenericToolInput(content *strings.Builder, inp
 	content.WriteString(m.systemStyle.Render("║ "))
 	content.WriteString(inputHeaderStyle.Render("📥 Input:"))
 	content.WriteString("\n")
-	
+
 	inputText := m.wrapText(input, m.width-6)
 	lines := strings.Split(inputText, "\n")
 	for _, line := range lines {
@@ -678,7 +678,7 @@ func (m *MessagesComponent) renderGenericToolInput(content *strings.Builder, inp
 		content.WriteString(line)
 		content.WriteString("\n")
 	}
-	
+
 	// Add separator
 	content.WriteString(m.systemStyle.Render("╠"))
 	content.WriteString(m.systemStyle.Render(strings.Repeat("═", 78)))
@@ -695,12 +695,12 @@ func (m *MessagesComponent) renderBashToolResult(content *strings.Builder, resul
 	content.WriteString(m.systemStyle.Render("║ "))
 	content.WriteString(outputHeaderStyle.Render("📤 Output:"))
 	content.WriteString("\n")
-	
+
 	// Style for command output
 	outputStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#C9D1D9")).
 		Background(lipgloss.Color("#0D1117"))
-	
+
 	// Process output line by line for better formatting
 	lines := strings.Split(result, "\n")
 	for _, line := range lines {
@@ -729,7 +729,7 @@ func (m *MessagesComponent) renderPentestToolResult(content *strings.Builder, re
 	content.WriteString(m.systemStyle.Render("║ "))
 	content.WriteString(resultHeaderStyle.Render("✅ Result:"))
 	content.WriteString("\n")
-	
+
 	// Try to parse result as JSON for better formatting
 	var resultData interface{}
 	if err := json.Unmarshal([]byte(result), &resultData); err == nil {
@@ -738,7 +738,7 @@ func (m *MessagesComponent) renderPentestToolResult(content *strings.Builder, re
 			resultStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#00FF41")).
 				Background(lipgloss.Color("#0D1117"))
-			
+
 			lines := strings.Split(string(formattedBytes), "\n")
 			for _, line := range lines {
 				if strings.TrimSpace(line) != "" {
@@ -762,7 +762,7 @@ func (m *MessagesComponent) renderRawResult(content *strings.Builder, result str
 	resultStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#C9D1D9")).
 		Background(lipgloss.Color("#0D1117"))
-	
+
 	lines := strings.Split(result, "\n")
 	for _, line := range lines {
 		// Wrap long lines
@@ -789,7 +789,7 @@ func (m *MessagesComponent) renderGenericToolResult(content *strings.Builder, re
 	content.WriteString(m.systemStyle.Render("║ "))
 	content.WriteString(resultHeaderStyle.Render("📤 Result:"))
 	content.WriteString("\n")
-	
+
 	resultText := m.wrapText(result, m.width-6)
 	lines := strings.Split(resultText, "\n")
 	for _, line := range lines {
@@ -807,7 +807,7 @@ func (m *MessagesComponent) renderToolError(content *strings.Builder, errorMsg s
 	content.WriteString(m.errorStyle.Render("║ "))
 	content.WriteString(errorHeaderStyle.Render("❌ Error:"))
 	content.WriteString("\n")
-	
+
 	errorText := m.wrapText(errorMsg, m.width-6)
 	lines := strings.Split(errorText, "\n")
 	for _, line := range lines {
