@@ -66,10 +66,27 @@ type NmapArgs struct {
 	Args []string `json:"args"`
 }
 
+const (
+	nmapInputSchema = `{
+		"type": "object",
+		"properties": {
+			"args": {
+				"type": "array",
+				"items": {
+					"type": "string"
+				},
+				"description": "Nmap command line arguments (e.g., [\"-sS\", \"-p\", \"80,443\", \"192.168.1.1\"])"
+			}
+		},
+		"required": ["args"]
+	}`
+)
+
 func (t *NmapTool) Tool() *llm.Tool {
 	return &llm.Tool{
 		Name:        "nmap",
 		Description: "Run an Nmap scan with the given arguments. The output will be parsed from XML into a structured format.",
+		InputSchema: llm.MustSchema(nmapInputSchema),
 		Run:         t.Run,
 	}
 }
