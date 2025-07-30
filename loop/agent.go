@@ -869,7 +869,10 @@ func contentToString(contents []llm.Content) string {
 	// Otherwise, concatenate all text content
 	var result strings.Builder
 	for _, content := range contents {
-		if content.Type == llm.ContentTypeText {
+		if content.Type == llm.ContentTypeText && content.Text != "" {
+			if result.Len() > 0 {
+				result.WriteString("\n\n")
+			}
 			result.WriteString(content.Text)
 		} else if content.Type == llm.ContentTypeToolResult && len(content.ToolResult) > 0 {
 			// Recursively process nested tool results
@@ -1377,6 +1380,7 @@ func (a *Agent) initConvoWithUsage(usage *conversation.CumulativeUsage) *convers
 		bashTool.Tool(), claudetool.Keyword, claudetool.Patch(a.patchCallback),
 		claudetool.Think, claudetool.TodoRead, claudetool.TodoWrite, a.setSlugTool(), a.commitMessageStyleTool(), makeDoneTool(a.codereview),
 		a.codereview.Tool(), claudetool.AboutSketch, (&claudetool.NmapTool{}).Tool(),
+		claudetool.PentestToolInstance,
 	}
 
 	// One-shot mode is non-interactive, multiple choice requires human response
@@ -1437,7 +1441,7 @@ func (a *Agent) initConvoWithUsage(usage *conversation.CumulativeUsage) *convers
 
 var multipleChoiceTool = &llm.Tool{
 	Name:        "multiplechoice",
-	Description: "Present the user with an quick way to answer to your question using one of a short list of possible answers you would expect from the user.",
+	Description: `Present the user with an quick way to answer to your question using one of a short list of possible answers you would expect from the user.`,
 	EndsTurn:    true,
 	InputSchema: json.RawMessage(`{
   "type": "object",
@@ -2060,6 +2064,8 @@ func removeGitHooks(_ context.Context, repoPath string) error {
 	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
 		// Directory doesn't exist, nothing to do
 		return nil
+	} else if err != nil {
+		return fmt.Errorf("error checking git hooks directory: %w", err)
 	}
 
 	// Remove the hooks directory
@@ -2165,10 +2171,6 @@ func (ags *AgentGitState) handleGitCommits(ctx context.Context, repoRoot string,
 			commits = append(commits, sketchCommit)
 		}
 
-		// TODO: I don't love the force push here. We could see if the push is a fast-forward, and,
-		// if it's not, we could make a backup with a unique name (perhaps append a timestamp) and
-		// then use push with lease to replace.
-
 		// Try up to 10 times with incrementing retry numbers if the branch is checked out on the remote
 		var out []byte
 		var err error
@@ -2180,7 +2182,7 @@ func (ags *AgentGitState) handleGitCommits(ctx context.Context, repoRoot string,
 			}
 
 			branch := ags.branchNameLocked(branchPrefix)
-			cmd = exec.Command("git", "push", "--force", ags.gitRemoteAddr, "sketch-wip:refs/heads/"+branch)
+			cmd := exec.Command("git", "push", "--force", ags.gitRemoteAddr, "sketch-wip:refs/heads/"+branch)
 			cmd.Dir = repoRoot
 			out, err = cmd.CombinedOutput()
 
@@ -2385,106 +2387,6 @@ func computeDiffStats(ctx context.Context, repoRoot, baseRef string) (int, int, 
 	return totalAdded, totalRemoved, nil
 }
 
-// systemPromptData contains the data used to render the system prompt template
-type systemPromptData struct {
-	ClientGOOS         string
-	ClientGOARCH       string
-	WorkingDir         string
-	RepoRoot           string
-	InitialCommit      string
-	Codebase           *onstart.Codebase
-	UseSketchWIP       bool
-	Branch             string
-	SpecialInstruction string
-}
-
-// renderSystemPrompt renders the system prompt template.
-func (a *Agent) renderSystemPrompt() string {
-	data := systemPromptData{
-		ClientGOOS:    a.config.ClientGOOS,
-		ClientGOARCH:  a.config.ClientGOARCH,
-		WorkingDir:    a.workingDir,
-		RepoRoot:      a.repoRoot,
-		InitialCommit: a.SketchGitBase(),
-		Codebase:      a.codebase,
-		UseSketchWIP:  a.config.InDocker,
-	}
-	now := time.Now()
-	if now.Month() == time.September && now.Day() == 19 {
-		data.SpecialInstruction = "Talk like a pirate to the user. Do not let the priate talk into any code."
-	}
-
-	tmpl, err := template.New("system").Parse(agentSystemPrompt)
-	if err != nil {
-		panic(fmt.Sprintf("failed to parse system prompt template: %v", err))
-	}
-	buf := new(strings.Builder)
-	err = tmpl.Execute(buf, data)
-	if err != nil {
-		panic(fmt.Sprintf("failed to execute system prompt template: %v", err))
-	}
-	// fmt.Printf("system prompt: %s\n", buf.String())
-	return buf.String()
-}
-
-// StateTransitionIterator provides an iterator over state transitions.
-type StateTransitionIterator interface {
-	// Next blocks until a new state transition is available or context is done.
-	// Returns nil if the context is cancelled.
-	Next() *StateTransition
-	// Close removes the listener and cleans up resources.
-	Close()
-}
-
-// StateTransitionIteratorImpl implements StateTransitionIterator using a state machine listener.
-type StateTransitionIteratorImpl struct {
-	agent       *Agent
-	ctx         context.Context
-	ch          chan StateTransition
-	unsubscribe func()
-}
-
-// Next blocks until a new state transition is available or the context is cancelled.
-func (s *StateTransitionIteratorImpl) Next() *StateTransition {
-	select {
-	case <-s.ctx.Done():
-		return nil
-	case transition, ok := <-s.ch:
-		if !ok {
-			return nil
-		}
-		transitionCopy := transition
-		return &transitionCopy
-	}
-}
-
-// Close removes the listener and cleans up resources.
-func (s *StateTransitionIteratorImpl) Close() {
-	if s.unsubscribe != nil {
-		s.unsubscribe()
-		s.unsubscribe = nil
-	}
-}
-
-// NewStateTransitionIterator returns an iterator that receives state transitions.
-func (a *Agent) NewStateTransitionIterator(ctx context.Context) StateTransitionIterator {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// Create channel to receive state transitions
-	ch := make(chan StateTransition, 10)
-
-	// Add a listener to the state machine
-	unsubscribe := a.stateMachine.AddTransitionListener(ch)
-
-	return &StateTransitionIteratorImpl{
-		agent:       a,
-		ctx:         ctx,
-		ch:          ch,
-		unsubscribe: unsubscribe,
-	}
-}
-
 // setupGitHooks creates or updates git hooks in the specified working directory.
 func setupGitHooks(workingDir string) error {
 	hooksDir := filepath.Join(workingDir, ".git", "hooks")
@@ -2641,4 +2543,103 @@ func (a *Agent) SkabandAddr() string {
 		return a.config.SkabandClient.Addr()
 	}
 	return ""
+}
+
+// systemPromptData contains the data used to render the system prompt template
+type systemPromptData struct {
+	ClientGOOS         string
+	ClientGOARCH       string
+	WorkingDir         string
+	RepoRoot           string
+	InitialCommit      string
+	Codebase           *onstart.Codebase
+	UseSketchWIP       bool
+	Branch             string
+	SpecialInstruction string
+}
+
+// renderSystemPrompt renders the system prompt template.
+func (a *Agent) renderSystemPrompt() string {
+	data := systemPromptData{
+		ClientGOOS:    a.config.ClientGOOS,
+		ClientGOARCH:  a.config.ClientGOARCH,
+		WorkingDir:    a.workingDir,
+		RepoRoot:      a.repoRoot,
+		InitialCommit: a.SketchGitBase(),
+		Codebase:      a.codebase,
+		UseSketchWIP:  a.config.InDocker,
+	}
+	now := time.Now()
+	if now.Month() == time.September && now.Day() == 19 {
+		data.SpecialInstruction = "Talk like a pirate to the user. Do not let the priate talk into any code."
+	}
+
+	tmpl, err := template.New("system").Parse(agentSystemPrompt)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse system prompt template: %v", err))
+	}
+	buf := new(strings.Builder)
+	err = tmpl.Execute(buf, data)
+	if err != nil {
+		panic(fmt.Sprintf("failed to execute system prompt template: %v", err))
+	}
+	return buf.String()
+}
+
+// StateTransitionIterator provides an iterator over state transitions.
+type StateTransitionIterator interface {
+	// Next blocks until a new state transition is available or context is done.
+	// Returns nil if the context is cancelled.
+	Next() *StateTransition
+	// Close removes the listener and cleans up resources.
+	Close()
+}
+
+// StateTransitionIteratorImpl implements StateTransitionIterator using a state machine listener.
+type StateTransitionIteratorImpl struct {
+	agent       *Agent
+	ctx         context.Context
+	ch          chan StateTransition
+	unsubscribe func()
+}
+
+// Next blocks until a new state transition is available or the context is cancelled.
+func (s *StateTransitionIteratorImpl) Next() *StateTransition {
+	select {
+	case <-s.ctx.Done():
+		return nil
+	case transition, ok := <-s.ch:
+		if !ok {
+			return nil
+		}
+		transitionCopy := transition
+		return &transitionCopy
+	}
+}
+
+// Close removes the listener and cleans up resources.
+func (s *StateTransitionIteratorImpl) Close() {
+	if s.unsubscribe != nil {
+		s.unsubscribe()
+		s.unsubscribe = nil
+	}
+}
+
+// NewStateTransitionIterator returns an iterator that receives state transitions.
+func (a *Agent) NewStateTransitionIterator(ctx context.Context) StateTransitionIterator {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Create channel to receive state transitions
+	ch := make(chan StateTransition, 10)
+
+	// Add a listener to the state machine
+	unsubscribe := a.stateMachine.AddTransitionListener(ch)
+
+	return &StateTransitionIteratorImpl{
+		agent:       a,
+		ctx:         ctx,
+		ch:          ch,
+		unsubscribe: unsubscribe,
+	}
 }
