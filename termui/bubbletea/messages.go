@@ -289,11 +289,12 @@ func (m *MessagesComponent) renderToolMessage(msg DisplayMessage) string {
 	content.WriteString(m.systemStyle.Render(header))
 	content.WriteString("\n")
 
-	// Enhanced input section for bash commands
+	// Enhanced input section for specialized tools
 	if msg.ToolInput != "" {
-		// Parse tool input if it's JSON (for bash tool)
 		if m.isBashTool(msg.ToolName) {
 			m.renderBashToolInput(&content, msg.ToolInput)
+		} else if m.isPentestTool(msg.ToolName) {
+			m.renderPentestToolInput(&content, msg.ToolInput)
 		} else {
 			// Generic tool input rendering
 			m.renderGenericToolInput(&content, msg.ToolInput)
@@ -306,6 +307,8 @@ func (m *MessagesComponent) renderToolMessage(msg DisplayMessage) string {
 	} else if msg.ToolResult != "" {
 		if m.isBashTool(msg.ToolName) {
 			m.renderBashToolResult(&content, msg.ToolResult)
+		} else if m.isPentestTool(msg.ToolName) {
+			m.renderPentestToolResult(&content, msg.ToolResult)
 		} else {
 			m.renderGenericToolResult(&content, msg.ToolResult)
 		}
@@ -552,6 +555,11 @@ func (m *MessagesComponent) isBashTool(toolName string) bool {
 	return toolName == "bash" || toolName == "shell" || toolName == "command"
 }
 
+// isPentestTool checks if the tool is the pentest tool that needs special formatting
+func (m *MessagesComponent) isPentestTool(toolName string) bool {
+	return toolName == "pentest"
+}
+
 // renderBashToolInput renders bash tool input with enhanced formatting
 func (m *MessagesComponent) renderBashToolInput(content *strings.Builder, input string) {
 	// Try to parse JSON input for bash tool
@@ -577,6 +585,69 @@ func (m *MessagesComponent) renderBashToolInput(content *strings.Builder, input 
 				content.WriteString(m.systemStyle.Render("║ "))
 				content.WriteString(cmdStyle.Render("$ " + line))
 				content.WriteString("\n")
+			}
+			
+			// Add separator
+			content.WriteString(m.systemStyle.Render("╠"))
+			content.WriteString(m.systemStyle.Render(strings.Repeat("═", 78)))
+			content.WriteString(m.systemStyle.Render("╣"))
+			content.WriteString("\n")
+		}
+	} else {
+		// Fallback to generic input rendering
+		m.renderGenericToolInput(content, input)
+	}
+}
+
+// renderPentestToolInput renders pentest tool input with action-based formatting
+func (m *MessagesComponent) renderPentestToolInput(content *strings.Builder, input string) {
+	// Try to parse JSON input for pentest tool
+	var pentestInput map[string]interface{}
+	if err := json.Unmarshal([]byte(input), &pentestInput); err == nil {
+		// Successfully parsed JSON, extract action and data
+		if action, ok := pentestInput["action"].(string); ok {
+			// Action section header
+			actionHeaderStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#00FFFF")).
+				Bold(true)
+			content.WriteString(m.systemStyle.Render("║ "))
+			content.WriteString(actionHeaderStyle.Render("🎯 Action:"))
+			content.WriteString("\n")
+			
+			// Action with highlighting
+			actionStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FF6B35")).
+				Background(lipgloss.Color("#1A1A1A")).
+				Padding(0, 1).
+				Bold(true)
+			content.WriteString(m.systemStyle.Render("║ "))
+			content.WriteString(actionStyle.Render(strings.ToUpper(action)))
+			content.WriteString("\n")
+			
+			// Data section if present
+			if data, ok := pentestInput["data"]; ok && data != nil {
+				// Data header
+				dataHeaderStyle := lipgloss.NewStyle().
+					Foreground(lipgloss.Color("#00FF41")).
+					Bold(true)
+				content.WriteString(m.systemStyle.Render("║ "))
+				content.WriteString(dataHeaderStyle.Render("📊 Data:"))
+				content.WriteString("\n")
+				
+				// Format data as JSON with indentation
+				if dataBytes, err := json.MarshalIndent(data, "", "  "); err == nil {
+					dataStyle := lipgloss.NewStyle().
+						Foreground(lipgloss.Color("#C9D1D9")).
+						Background(lipgloss.Color("#0D1117"))
+					dataLines := strings.Split(string(dataBytes), "\n")
+					for _, line := range dataLines {
+						if strings.TrimSpace(line) != "" {
+							content.WriteString(m.systemStyle.Render("║ "))
+							content.WriteString(dataStyle.Render(line))
+							content.WriteString("\n")
+						}
+					}
+				}
 			}
 			
 			// Add separator
@@ -644,6 +715,67 @@ func (m *MessagesComponent) renderBashToolResult(content *strings.Builder, resul
 		} else {
 			content.WriteString(m.systemStyle.Render("║ "))
 			content.WriteString(outputStyle.Render(line))
+			content.WriteString("\n")
+		}
+	}
+}
+
+// renderPentestToolResult renders pentest tool result with specialized formatting
+func (m *MessagesComponent) renderPentestToolResult(content *strings.Builder, result string) {
+	// Result section header
+	resultHeaderStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00FF41")).
+		Bold(true)
+	content.WriteString(m.systemStyle.Render("║ "))
+	content.WriteString(resultHeaderStyle.Render("✅ Result:"))
+	content.WriteString("\n")
+	
+	// Try to parse result as JSON for better formatting
+	var resultData interface{}
+	if err := json.Unmarshal([]byte(result), &resultData); err == nil {
+		// Successfully parsed JSON, format with indentation
+		if formattedBytes, err := json.MarshalIndent(resultData, "", "  "); err == nil {
+			resultStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#00FF41")).
+				Background(lipgloss.Color("#0D1117"))
+			
+			lines := strings.Split(string(formattedBytes), "\n")
+			for _, line := range lines {
+				if strings.TrimSpace(line) != "" {
+					content.WriteString(m.systemStyle.Render("║ "))
+					content.WriteString(resultStyle.Render(line))
+					content.WriteString("\n")
+				}
+			}
+		} else {
+			// JSON parsing succeeded but formatting failed, show raw
+			m.renderRawResult(content, result)
+		}
+	} else {
+		// Not JSON, render as plain text with highlighting for key information
+		m.renderRawResult(content, result)
+	}
+}
+
+// renderRawResult renders raw text result with basic formatting
+func (m *MessagesComponent) renderRawResult(content *strings.Builder, result string) {
+	resultStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#C9D1D9")).
+		Background(lipgloss.Color("#0D1117"))
+	
+	lines := strings.Split(result, "\n")
+	for _, line := range lines {
+		// Wrap long lines
+		if len(line) > m.width-6 {
+			wrappedLines := m.wrapText(line, m.width-6)
+			for _, wrappedLine := range strings.Split(wrappedLines, "\n") {
+				content.WriteString(m.systemStyle.Render("║ "))
+				content.WriteString(resultStyle.Render(wrappedLine))
+				content.WriteString("\n")
+			}
+		} else {
+			content.WriteString(m.systemStyle.Render("║ "))
+			content.WriteString(resultStyle.Render(line))
 			content.WriteString("\n")
 		}
 	}

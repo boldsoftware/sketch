@@ -250,10 +250,17 @@ func executeBash(ctx context.Context, req bashInput, timeout time.Duration) (str
 
 			defer func() {
 				// Wait for output copying to complete after command finishes
+				// Use longer timeout for commands that might have delayed output (like nmap)
+				timeout := 2 * time.Second
+				if strings.Contains(strings.ToLower(req.Command), "nmap") {
+					// Nmap can have delayed output, give it more time
+					timeout = 5 * time.Second
+				}
 				select {
 				case <-outputDone:
-				case <-time.After(100 * time.Millisecond):
+				case <-time.After(timeout):
 					// If we don't get all output within a reasonable time, continue anyway
+					slog.WarnContext(ctx, "PTY output copying timed out", "timeout", timeout)
 				}
 			}()
 		}

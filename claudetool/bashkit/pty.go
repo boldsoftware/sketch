@@ -1,3 +1,6 @@
+//go:build unix
+// +build unix
+
 package bashkit
 
 import (
@@ -6,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -127,6 +131,70 @@ func IsPTYSupported() bool {
 }
 
 // CopyOutput reads from the PTY master and writes to the provided writer.
+// Uses timeout-aware reading to prevent hanging on commands like nmap.
 func CopyOutput(w io.Writer, pty *PTY) {
-	io.Copy(w, pty.Master)
+	CopyOutputWithTimeout(w, pty, 0) // 0 means no overall timeout, but uses read timeouts
+}
+
+// CopyOutputWithTimeout reads from the PTY master with configurable timeout.
+// If timeout is 0, it uses read timeouts but no overall timeout.
+// If timeout > 0, it stops after that duration regardless of activity.
+func CopyOutputWithTimeout(w io.Writer, pty *PTY, timeout time.Duration) {
+	const readTimeout = 500 * time.Millisecond // Timeout for individual read operations
+	const bufferSize = 4096                    // Buffer size for reading
+	
+	buffer := make([]byte, bufferSize)
+	var deadline time.Time
+	if timeout > 0 {
+		deadline = time.Now().Add(timeout)
+	}
+	
+	for {
+		// Check overall timeout
+		if timeout > 0 && time.Now().After(deadline) {
+			break
+		}
+		
+		// Set read timeout on the PTY master
+		if err := pty.Master.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
+			// If we can't set deadline, fall back to blocking read with shorter buffer
+			n, err := pty.Master.Read(buffer[:256])
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				// Other errors (including closed PTY) should break the loop
+				break
+			}
+			if n > 0 {
+				w.Write(buffer[:n])
+			}
+			continue
+		}
+		
+		// Read with timeout
+		n, err := pty.Master.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			// Check if it's a timeout error
+			if netErr, ok := err.(interface{ Timeout() bool }); ok && netErr.Timeout() {
+				// Read timeout - continue trying unless we've exceeded overall timeout
+				continue
+			}
+			// Other errors (including closed PTY) should break the loop
+			break
+		}
+		
+		if n > 0 {
+			if _, writeErr := w.Write(buffer[:n]); writeErr != nil {
+				// If we can't write to the output, stop
+				break
+			}
+		}
+	}
+	
+	// Clear any remaining deadline
+	pty.Master.SetReadDeadline(time.Time{})
 }
