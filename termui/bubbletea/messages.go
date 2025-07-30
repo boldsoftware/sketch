@@ -476,7 +476,11 @@ func (m *MessagesComponent) HandleAgentMessage(msg *loop.AgentMessage) tea.Cmd {
 	}
 
 	m.AddMessage(displayMsg)
-	return nil
+	
+	// Send completion message to reset input thinking state
+	return func() tea.Msg {
+		return AgentResponseCompleteMsg{}
+	}
 }
 
 // HandleToolUse handles tool use messages

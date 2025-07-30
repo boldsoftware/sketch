@@ -845,6 +845,11 @@ func (app *BubbleTeaApp) handleAgentMessage(msg agentMessageMsg) (tea.Model, tea
 		}
 	}
 
+	// Add completion message to reset input thinking state
+	cmds = append(cmds, func() tea.Msg {
+		return AgentResponseCompleteMsg{}
+	})
+
 	// Return batch command if we have multiple commands
 	if len(cmds) > 1 {
 		return app, tea.Batch(cmds...)

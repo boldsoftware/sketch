@@ -40,3 +40,8 @@ type stateTransitionMsg struct {
 }
 
 func (m stateTransitionMsg) Type() string { return string(StateTransitionType) }
+
+// AgentResponseCompleteMsg is sent when the agent has finished responding
+type AgentResponseCompleteMsg struct{}
+
+func (m AgentResponseCompleteMsg) Type() string { return "agent_response_complete" }

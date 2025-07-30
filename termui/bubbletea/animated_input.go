@@ -163,14 +163,18 @@ func (a *AnimatedInputComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, func() tea.Msg {
 			return MessageSendEndMsg{}
 		})
-		// Here you would normally send to the agent
-		// For now, simulate processing
-		cmds = append(cmds, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
-			return ThinkingEndMsg{}
-		}))
+		// Send the actual user input message to the main UI
+		cmds = append(cmds, func() tea.Msg {
+			return userInputMsg{input: msg.Input}
+		})
 
 	case ThinkingEndMsg:
 		a.thinking = false
+
+	case AgentResponseCompleteMsg:
+		// Agent has finished responding, reset thinking state
+		a.thinking = false
+		a.sending = false
 
 	case TypingAnimationMsg:
 		if a.typingAnimation && a.typingIndex < len(a.typingText) {
