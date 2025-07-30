@@ -174,24 +174,25 @@ func (a *AnimatedMessagesComponent) View() string {
 		return baseView
 	}
 
-	// Add animation overlay
-	var overlay strings.Builder
+	// Add clean, minimalistic animation indicators
+	var animations []string
 
-	// Add thinking indicator
+	// Clean thinking indicator
 	if a.thinking {
-		thinkingText := fmt.Sprintf("%s %s", a.thinkSpinner.View(), a.loadingMessage)
-		if a.loadingMessage == "" {
-			thinkingText = fmt.Sprintf("%s AI is thinking%s", 
-				a.thinkSpinner.View(), 
-				strings.Repeat(".", a.loadingDots))
-		}
-		
-		overlay.WriteString(a.renderAnimationBox("🧠 THINKING", thinkingText, a.thinkingStyle))
-		overlay.WriteString("\n")
+		thinkingStyle := lipgloss.NewStyle().
+			Foreground(CyberBlue).
+			Italic(true)
+			
+		thinkingText := fmt.Sprintf("%s Thinking...", a.thinkSpinner.View())
+		animations = append(animations, thinkingStyle.Render(thinkingText))
 	}
 
-	// Add typing indicator
+	// Clean typing indicator
 	if a.typing {
+		typingStyle := lipgloss.NewStyle().
+			Foreground(HackerGreen).
+			Italic(true)
+			
 		displayText := a.typingText[:a.typingIndex]
 		cursor := ""
 		if a.showCursor {
@@ -199,25 +200,27 @@ func (a *AnimatedMessagesComponent) View() string {
 		}
 		
 		typingText := fmt.Sprintf("%s %s%s", a.typeSpinner.View(), displayText, cursor)
-		overlay.WriteString(a.renderAnimationBox("⌨️  TYPING", typingText, a.typingStyle))
-		overlay.WriteString("\n")
+		animations = append(animations, typingStyle.Render(typingText))
 	}
 
-	// Add tool execution indicator
+	// Clean tool execution indicator
 	if a.toolExecuting {
-		progressBar := a.renderProgressBar(a.commandProgress, 30)
+		toolStyle := lipgloss.NewStyle().
+			Foreground(WarningRed).
+			Bold(true)
+			
+		progressBar := a.renderProgressBar(a.commandProgress, 20)
 		toolText := fmt.Sprintf("%s %s %s", 
 			a.toolSpinner.View(), 
 			a.currentOperation,
 			progressBar)
-		
-		overlay.WriteString(a.renderAnimationBox("🛠️ EXECUTING", toolText, a.loadingStyle))
-		overlay.WriteString("\n")
+			
+		animations = append(animations, toolStyle.Render(toolText))
 	}
 
-	// Combine base view with overlay
-	if overlay.Len() > 0 {
-		return baseView + "\n" + overlay.String()
+	// Combine base view with clean animations
+	if len(animations) > 0 {
+		return baseView + "\n" + strings.Join(animations, "\n") + "\n"
 	}
 
 	return baseView

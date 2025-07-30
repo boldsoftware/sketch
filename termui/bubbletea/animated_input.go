@@ -69,12 +69,12 @@ func NewAnimatedInputComponent() *AnimatedInputComponent {
 		prompt:       "🎯",
 		typingSpeed:  50 * time.Millisecond,
 		promptStyle: lipgloss.NewStyle().
-			Foreground(WarningRed).
-			Bold(true).
-			PaddingRight(1),
+			Foreground(HackerGreen).
+			Bold(true),
 		inputStyle: lipgloss.NewStyle().
-			Foreground(TextColor).
-			Background(DarkBg),
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(lipgloss.Color("#1a1a1a")).
+			Padding(0, 1),
 		thinkingStyle: lipgloss.NewStyle().
 			Foreground(CyberBlue).
 			Italic(true),
@@ -214,62 +214,75 @@ func (a *AnimatedInputComponent) View() string {
 		return ""
 	}
 
-	var content strings.Builder
+	// Clean minimalistic design with clear input visibility
+	var lines []string
 
-	// Top border
-	content.WriteString(a.borderStyle.Render("╭" + strings.Repeat("─", a.width-2) + "╮\n"))
-
-	// Input line
-	content.WriteString(a.borderStyle.Render("│ "))
-	
+	// Main input line with clear prompt and input field
+	var inputLine string
 	if a.sending {
-		content.WriteString(a.sendingStyle.Render(fmt.Sprintf("%s SENDING MESSAGE...", a.sendSpinner.View())))
+		inputLine = a.sendingStyle.Render(fmt.Sprintf("%s Sending...", a.sendSpinner.View()))
 	} else if a.thinking {
-		content.WriteString(a.thinkingStyle.Render(fmt.Sprintf("%s PROCESSING...", a.thinkSpinner.View())))
-	} else if a.typingAnimation {
-		displayText := a.typingText[:a.typingIndex]
-		content.WriteString(a.promptStyle.Render(a.prompt + " "))
-		content.WriteString(a.inputStyle.Render(displayText + "▋"))
+		inputLine = a.thinkingStyle.Render(fmt.Sprintf("%s Processing...", a.thinkSpinner.View()))
 	} else {
-		content.WriteString(a.promptStyle.Render(a.prompt + " "))
-		content.WriteString(a.inputStyle.Render(a.textInput.View()))
+		// Clear, visible input with contrasting colors
+		promptPart := a.promptStyle.Render(a.prompt + " ")
+		inputPart := a.inputStyle.Render(a.textInput.View())
+		inputLine = promptPart + inputPart
 	}
 
-	// Pad the line
-	currentLine := fmt.Sprintf("│ %s %s", a.prompt, a.textInput.View())
-	if a.sending || a.thinking {
-		currentLine = fmt.Sprintf("│ %s", a.sendSpinner.View())
-	}
-	padding := max(0, a.width-len(currentLine)-1)
-	content.WriteString(strings.Repeat(" ", padding))
-	content.WriteString(a.borderStyle.Render("│\n"))
-
-	// Status line
-	content.WriteString(a.borderStyle.Render("│ "))
+	// Add subtle border around input
+	borderTop := lipgloss.NewStyle().
+		Foreground(DarkGreen).
+		Render("┌" + strings.Repeat("─", a.width-2) + "┐")
 	
-	statusText := ""
-	if a.sending {
-		statusText = "⚡ Sending to AI agent..."
-	} else if a.thinking {
-		statusText = "🧠 AI is thinking..."
-	} else if len(a.history) > 0 {
-		statusText = fmt.Sprintf("📝 History: %d commands | ↑↓ to navigate", len(a.history))
-	} else {
-		statusText = "💡 Ready for pentesting commands"
-	}
+	borderBottom := lipgloss.NewStyle().
+		Foreground(DarkGreen).
+		Render("└" + strings.Repeat("─", a.width-2) + "┘")
 
-	statusStyle := lipgloss.NewStyle().Foreground(MutedText).Italic(true)
-	content.WriteString(statusStyle.Render(statusText))
+	// Input line with proper padding
+	inputWithBorder := lipgloss.NewStyle().
+		Foreground(DarkGreen).
+		Render("│ ") + inputLine
 	
-	// Pad status line
-	statusPadding := max(0, a.width-len(statusText)-4)
-	content.WriteString(strings.Repeat(" ", statusPadding))
-	content.WriteString(a.borderStyle.Render("│\n"))
+	// Pad to full width
+	currentLen := len("│ ") + len(inputLine)
+	padding := max(0, a.width-currentLen-1)
+	inputWithBorder += strings.Repeat(" ", padding) + 
+		lipgloss.NewStyle().Foreground(DarkGreen).Render("│")
 
-	// Bottom border
-	content.WriteString(a.borderStyle.Render("╰" + strings.Repeat("─", a.width-2) + "╯"))
+	lines = append(lines, borderTop)
+	lines = append(lines, inputWithBorder)
+	
+	// Optional status line (only when relevant)
+	if a.sending || a.thinking || len(a.history) > 0 {
+		var statusText string
+		if a.sending {
+			statusText = "⚡ Sending to AI"
+		} else if a.thinking {
+			statusText = "🧠 AI thinking"
+		} else {
+			statusText = fmt.Sprintf("↑↓ History (%d)", len(a.history))
+		}
+		
+		statusStyle := lipgloss.NewStyle().
+			Foreground(MutedText).
+			Italic(true)
+		
+		statusLine := lipgloss.NewStyle().
+			Foreground(DarkGreen).
+			Render("│ ") + statusStyle.Render(statusText)
+		
+		statusLen := len("│ ") + len(statusText)
+		statusPadding := max(0, a.width-statusLen-1)
+		statusLine += strings.Repeat(" ", statusPadding) + 
+			lipgloss.NewStyle().Foreground(DarkGreen).Render("│")
+		
+		lines = append(lines, statusLine)
+	}
+	
+	lines = append(lines, borderBottom)
 
-	return content.String()
+	return strings.Join(lines, "\n")
 }
 
 func (a *AnimatedInputComponent) SetAgent(agent loop.CodingAgent) {

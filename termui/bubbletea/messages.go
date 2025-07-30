@@ -231,50 +231,54 @@ func (m *MessagesComponent) renderMessage(msg DisplayMessage) string {
 	return rendered
 }
 
-// renderUserMessage renders a user message in hacker style
+// renderUserMessage renders a user message in clean, minimalistic style
 func (m *MessagesComponent) renderUserMessage(msg DisplayMessage) string {
 	var content strings.Builder
 
-	// User message header with timestamp and hacker styling
-	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] 👤 You ══╗", timestamp)
-	content.WriteString(m.userStyle.Render(header))
+	// Clean header with timestamp
+	timestamp := msg.Timestamp.Format("15:04")
+	headerStyle := lipgloss.NewStyle().
+		Foreground(HackerGreen).
+		Bold(true)
+	
+	header := fmt.Sprintf("👤 %s", timestamp)
+	content.WriteString(headerStyle.Render(header))
 	content.WriteString("\n")
 
-	// Message content with proper wrapping and border
-	messageText := m.wrapText(msg.Content, m.width-6)
-	lines := strings.Split(messageText, "\n")
-	for _, line := range lines {
-		content.WriteString(m.userStyle.Render("║ "))
-		content.WriteString(line)
-		content.WriteString("\n")
-	}
-	content.WriteString(m.userStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
-	content.WriteString("\n")
+	// Message content with subtle indentation
+	messageStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF")).
+		PaddingLeft(3)
+	
+	messageText := m.wrapText(msg.Content, m.width-4)
+	content.WriteString(messageStyle.Render(messageText))
+	content.WriteString("\n\n")
 
 	return content.String()
 }
 
-// renderAgentMessage renders an agent message in hacker style
+// renderAgentMessage renders an agent message in clean, minimalistic style
 func (m *MessagesComponent) renderAgentMessage(msg DisplayMessage) string {
 	var content strings.Builder
 
-	// Agent message header with timestamp and hacker styling
-	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] Kifaru ══╗", timestamp)
-	content.WriteString(m.agentStyle.Render(header))
+	// Clean header with timestamp
+	timestamp := msg.Timestamp.Format("15:04")
+	headerStyle := lipgloss.NewStyle().
+		Foreground(CyberBlue).
+		Bold(true)
+	
+	header := fmt.Sprintf("🤖 Kifaru %s", timestamp)
+	content.WriteString(headerStyle.Render(header))
 	content.WriteString("\n")
 
-	// Message content with proper wrapping and border
-	messageText := m.wrapText(msg.Content, m.width-6)
-	lines := strings.Split(messageText, "\n")
-	for _, line := range lines {
-		content.WriteString(m.agentStyle.Render("║ "))
-		content.WriteString(line)
-		content.WriteString("\n")
-	}
-	content.WriteString(m.agentStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
-	content.WriteString("\n")
+	// Message content with subtle indentation and different color
+	messageStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#E6E6E6")).
+		PaddingLeft(3)
+	
+	messageText := m.wrapText(msg.Content, m.width-4)
+	content.WriteString(messageStyle.Render(messageText))
+	content.WriteString("\n\n")
 
 	return content.String()
 }
