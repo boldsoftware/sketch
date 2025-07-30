@@ -29,16 +29,17 @@ var (
 	MutedText     = lipgloss.Color("#8B949E")
 )
 
-// BubbleTeaApp is the main application model that implements tea.Model
+// BubbleTeaApp is the main Bubble Tea application model
 type BubbleTeaApp struct {
 	agent   loop.CodingAgent
 	httpURL string
 	ctx     context.Context
 
-	// Components
-	chatView  UIComponent
-	inputView UIComponent
-	statusBar UIComponent
+	// Enhanced UI components with animations
+	messages        *AnimatedMessagesComponent
+	input           *AnimatedInputComponent
+	status          *AnimatedStatusComponent
+	progressTracker *ProgressTracker
 
 	// Message routing and queue management
 	messageQueue *MessageQueue
@@ -59,6 +60,18 @@ type BubbleTeaApp struct {
 	width  int
 	height int
 	ready  bool
+
+	// Animation states
+	thinking      bool
+	processing    bool
+	currentTool   string
+
+	// Message routing
+	messageHandlers map[MessageType]MessageHandler
+
+	// Styling
+	headerStyle lipgloss.Style
+	borderStyle lipgloss.Style
 
 	// Error handling and recovery
 	errorHandler *ErrorHandler
@@ -150,9 +163,9 @@ func (ui *BubbleTeaUI) Run(ctx context.Context) error {
 	defer cancelProgram()
 
 	// Set up context for all components
-	ui.app.chatView.SetContext(programCtx)
-	ui.app.inputView.SetContext(programCtx)
-	ui.app.statusBar.SetContext(programCtx)
+	ui.app.messages.SetContext(programCtx)
+	ui.app.input.SetContext(programCtx)
+	ui.app.status.SetContext(programCtx)
 
 	// Create recovery manager
 	recoveryManager := NewRecoveryManager(programCtx, ui.app.errorHandler)
@@ -203,14 +216,14 @@ func (ui *BubbleTeaUI) Run(ctx context.Context) error {
 			ui.popTerminalTitle()
 
 			// Attempt to restore component states
-			if ui.app.chatView != nil {
-				recoveryManager.RestoreComponentState(ui.app.chatView)
+			if ui.app.messages != nil {
+				recoveryManager.RestoreComponentState(ui.app.messages)
 			}
-			if ui.app.inputView != nil {
-				recoveryManager.RestoreComponentState(ui.app.inputView)
+			if ui.app.input != nil {
+				recoveryManager.RestoreComponentState(ui.app.input)
 			}
-			if ui.app.statusBar != nil {
-				recoveryManager.RestoreComponentState(ui.app.statusBar)
+			if ui.app.status != nil {
+				recoveryManager.RestoreComponentState(ui.app.status)
 			}
 		}
 	}()
@@ -231,38 +244,41 @@ func (ui *BubbleTeaUI) Run(ctx context.Context) error {
 
 // initializeComponents sets up all UI components
 func (ui *BubbleTeaUI) initializeComponents() error {
-	// Create components if they don't exist
-	if ui.app.chatView == nil {
-		ui.app.chatView = NewMessagesComponent()
+	// Create animated components if they don't exist
+	if ui.app.messages == nil {
+		ui.app.messages = NewAnimatedMessagesComponent()
 	}
 
-	if ui.app.inputView == nil {
-		ui.app.inputView = NewInputComponent()
+	if ui.app.input == nil {
+		ui.app.input = NewAnimatedInputComponent()
 	}
 
-	if ui.app.statusBar == nil {
-		ui.app.statusBar = NewStatusComponent()
+	if ui.app.status == nil {
+		ui.app.status = NewAnimatedStatusComponent()
+	}
+
+	if ui.app.progressTracker == nil {
+		ui.app.progressTracker = NewProgressTracker()
 	}
 
 	// Set up agent and context references
-	ui.app.chatView.SetAgent(ui.app.agent)
-	ui.app.inputView.SetAgent(ui.app.agent)
-	ui.app.statusBar.SetAgent(ui.app.agent)
+	ui.app.messages.SetAgent(ui.app.agent)
+	ui.app.input.SetAgent(ui.app.agent)
+	ui.app.status.SetAgent(ui.app.agent)
 
 	// Set up message routing - ONLY MessagesComponent handles display messages
-	ui.app.router.RegisterHandler("agent_message", ui.app.chatView.(MessageHandler))
-	ui.app.router.RegisterHandler("tool_use", ui.app.chatView.(MessageHandler))
-	ui.app.router.RegisterHandler("system_message", ui.app.chatView.(MessageHandler))
+	ui.app.router.RegisterHandler("agent_message", ui.app.messages)
+	ui.app.router.RegisterHandler("user_message", ui.app.messages)
+	ui.app.router.RegisterHandler("tool_message", ui.app.messages)
+	ui.app.router.RegisterHandler("error_message", ui.app.messages)
+	ui.app.router.RegisterHandler("system_message", ui.app.messages)
 
 	// InputComponent should NOT handle display messages - only manage its own state
-	// Remove the duplicate registrations that were causing rendering inefficiency
 
 	// Set up input component with URL
-	if inputComp, ok := ui.app.inputView.(*InputComponent); ok {
-		inputComp.SetPrompt(ui.app.httpURL, false)
-		// Ensure the input is focused
-		inputComp.textInput.Focus()
-	}
+	ui.app.input.SetPrompt(ui.app.httpURL, false)
+	// Ensure the input is focused
+	ui.app.input.textInput.Focus()
 
 	return nil
 }
@@ -441,9 +457,9 @@ func (ui *BubbleTeaUI) processStateTransitions(ctx context.Context) {
 		ui.app.mu.Unlock()
 
 		// Update status component if available
-		if ui.app.statusBar != nil {
-			if statusComp, ok := ui.app.statusBar.(*StatusComponent); ok {
-				statusComp.UpdateState(transition.To.String())
+		if ui.app.status != nil {
+			if ui.app.status.StatusComponent != nil {
+				ui.app.status.StatusComponent.UpdateState(transition.To.String())
 			}
 		}
 	}
@@ -716,25 +732,25 @@ func (app *BubbleTeaApp) View() string {
 
 	// Main chat view with proper height
 	var chatContent string
-	if app.chatView != nil {
-		// Update chat view height
-		if messagesComp, ok := app.chatView.(*MessagesComponent); ok {
-			messagesComp.height = chatHeight
-			messagesComp.viewport.Height = chatHeight
+	if app.messages != nil {
+		// Update messages view height
+		if app.messages.MessagesComponent != nil {
+			app.messages.MessagesComponent.height = chatHeight
+			app.messages.MessagesComponent.viewport.Height = chatHeight
 		}
-		chatContent = app.chatView.View()
+		chatContent = app.messages.View()
 	}
 
 	// Status bar at bottom
 	var statusContent string
-	if app.statusBar != nil {
-		statusContent = app.statusBar.View()
+	if app.status != nil {
+		statusContent = app.status.View()
 	}
 
 	// Input component at very bottom
 	var inputContent string
-	if app.inputView != nil {
-		inputContent = app.inputView.View()
+	if app.input != nil {
+		inputContent = app.input.View()
 	}
 
 	// Create a hacker-themed separator line
@@ -783,21 +799,21 @@ func (app *BubbleTeaApp) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// First, let the input component handle the key press
-	if app.inputView != nil {
-		model, cmd := app.inputView.Update(msg)
-		if uiComponent, ok := model.(UIComponent); ok {
-			app.inputView = uiComponent
+	if app.input != nil {
+		model, cmd := app.input.Update(msg)
+		if animatedInput, ok := model.(*AnimatedInputComponent); ok {
+			app.input = animatedInput
 		}
 		if cmd != nil {
 			return app, cmd
 		}
 	}
 
-	// Then, let the chat view handle the key press for scrolling
-	if app.chatView != nil {
-		model, cmd := app.chatView.Update(msg)
-		if uiComponent, ok := model.(UIComponent); ok {
-			app.chatView = uiComponent
+	// Then, let the messages view handle the key press for scrolling
+	if app.messages != nil {
+		model, cmd := app.messages.Update(msg)
+		if animatedMessages, ok := model.(*AnimatedMessagesComponent); ok {
+			app.messages = animatedMessages
 		}
 		if cmd != nil {
 			return app, cmd
@@ -873,11 +889,11 @@ func (app *BubbleTeaApp) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, t
 	// Update component sizes based on new window dimensions
 	var cmds []tea.Cmd
 
-	// Update chat view size
-	if app.chatView != nil {
-		model, cmd := app.chatView.Update(msg)
-		if uiComponent, ok := model.(UIComponent); ok {
-			app.chatView = uiComponent
+	// Update messages view size
+	if app.messages != nil {
+		model, cmd := app.messages.Update(msg)
+		if animatedMessages, ok := model.(*AnimatedMessagesComponent); ok {
+			app.messages = animatedMessages
 		}
 		if cmd != nil {
 			cmds = append(cmds, cmd)
@@ -885,10 +901,10 @@ func (app *BubbleTeaApp) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, t
 	}
 
 	// Update input view size
-	if app.inputView != nil {
-		model, cmd := app.inputView.Update(msg)
-		if uiComponent, ok := model.(UIComponent); ok {
-			app.inputView = uiComponent
+	if app.input != nil {
+		model, cmd := app.input.Update(msg)
+		if animatedInput, ok := model.(*AnimatedInputComponent); ok {
+			app.input = animatedInput
 		}
 		if cmd != nil {
 			cmds = append(cmds, cmd)
@@ -896,10 +912,10 @@ func (app *BubbleTeaApp) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, t
 	}
 
 	// Update status bar size
-	if app.statusBar != nil {
-		model, cmd := app.statusBar.Update(msg)
-		if uiComponent, ok := model.(UIComponent); ok {
-			app.statusBar = uiComponent
+	if app.status != nil {
+		model, cmd := app.status.Update(msg)
+		if animatedStatus, ok := model.(*AnimatedStatusComponent); ok {
+			app.status = animatedStatus
 		}
 		if cmd != nil {
 			cmds = append(cmds, cmd)

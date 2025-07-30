@@ -17,14 +17,14 @@ func NewCompatibilityWrapper(agent loop.CodingAgent, httpURL string) *Compatibil
 	ui := New(agent, httpURL)
 
 	// Initialize all components
-	ui.app.chatView = NewMessagesComponent()
-	ui.app.inputView = NewInputComponent()
-	ui.app.statusBar = NewStatusComponent()
+	ui.app.messages = NewAnimatedMessagesComponent()
+	ui.app.input = NewAnimatedInputComponent()
+	ui.app.status = NewAnimatedStatusComponent()
 
 	// Set up component references
-	ui.app.chatView.SetAgent(agent)
-	ui.app.inputView.SetAgent(agent)
-	ui.app.statusBar.SetAgent(agent)
+	ui.app.messages.SetAgent(agent)
+	ui.app.input.SetAgent(agent)
+	ui.app.status.SetAgent(agent)
 
 	return &CompatibilityWrapper{
 		bubbleUI: ui,
