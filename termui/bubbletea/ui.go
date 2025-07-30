@@ -14,6 +14,21 @@ import (
 	"sketch.dev/loop"
 )
 
+// Hacker theme colors
+var (
+	// Matrix-inspired green color palette
+	HackerGreen   = lipgloss.Color("#00FF41")
+	DarkGreen     = lipgloss.Color("#008F11")
+	MatrixGreen   = lipgloss.Color("#003B00")
+	TerminalGreen = lipgloss.Color("#39FF14")
+	CyberBlue     = lipgloss.Color("#00FFFF")
+	WarningRed    = lipgloss.Color("#FF0040")
+	DarkBg        = lipgloss.Color("#0D1117")
+	BorderColor   = lipgloss.Color("#21262D")
+	TextColor     = lipgloss.Color("#C9D1D9")
+	MutedText     = lipgloss.Color("#8B949E")
+)
+
 // BubbleTeaApp is the main application model that implements tea.Model
 type BubbleTeaApp struct {
 	agent   loop.CodingAgent
@@ -181,7 +196,7 @@ func (ui *BubbleTeaUI) Run(ctx context.Context) error {
 			if ui.app.errorHandler != nil {
 				ui.app.errorHandler.logger.Error("Recovered from panic in Bubble Tea UI", "error", r)
 			} else {
-				fmt.Printf("Recovered from panic in Bubble Tea UI: %v\n", r)
+				// Silently handle panic recovery
 			}
 
 			// Ensure terminal state is restored
@@ -448,7 +463,7 @@ func (ui *BubbleTeaUI) RestoreOldState() error {
 
 // pushTerminalTitle pushes the current terminal title onto the title stack
 func (ui *BubbleTeaUI) pushTerminalTitle() {
-	fmt.Printf("\033[22;0t")
+	// Push terminal title (escape sequence removed for cleaner output)
 	ui.app.mu.Lock()
 	ui.app.titlePushed = true
 	ui.app.mu.Unlock()
@@ -461,7 +476,7 @@ func (ui *BubbleTeaUI) popTerminalTitle() {
 	ui.app.mu.Unlock()
 
 	if titlePushed {
-		fmt.Printf("\033[23;0t")
+		// Pop terminal title (escape sequence removed for cleaner output)
 		ui.app.mu.Lock()
 		ui.app.titlePushed = false
 		ui.app.mu.Unlock()
@@ -470,7 +485,7 @@ func (ui *BubbleTeaUI) popTerminalTitle() {
 
 // setTerminalTitle sets the terminal title
 func (ui *BubbleTeaUI) setTerminalTitle(title string) {
-	fmt.Printf("\033]0;%s\007", title)
+	// Set terminal title (escape sequence removed for cleaner output)
 }
 
 // updateTitleWithSlug updates the terminal title with slug
@@ -665,25 +680,38 @@ func (app *BubbleTeaApp) View() string {
 	// Calculate available space for chat view
 	chatHeight := app.height - 10 // Reserve more space for better spacing and separator
 
-	// Create header with clean styling like Gemini CLI
+	// Create hacker-themed header
 	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("39")).
+		Foreground(HackerGreen).
+		Background(DarkBg).
 		Bold(true).
-		PaddingLeft(1).
+		PaddingLeft(2).
+		PaddingRight(2).
+		PaddingTop(1).
+		PaddingBottom(1).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(DarkGreen).
 		MarginBottom(1)
 
-	header := headerStyle.Render(fmt.Sprintf("sketch %s", app.httpURL))
+	// ASCII art style header
+	headerText := fmt.Sprintf(" KIFARU PENTEST FRAMEWORK ")
+	if app.httpURL != "" {
+		headerText += fmt.Sprintf(" | %s", app.httpURL)
+	}
+	header := headerStyle.Render(headerText)
 
-	// Create warning/info bar if needed (like Gemini CLI's directory warning)
+	// Create hacker-themed info bar
 	var infoBar string
 	if app.currentSlug != "" {
 		infoStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214")).
-			Background(lipgloss.Color("58")).
-			Padding(0, 1).
-			Width(app.width).
+			Foreground(CyberBlue).
+			Background(MatrixGreen).
+			Bold(true).
+			Padding(0, 2).
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(DarkGreen).
 			MarginBottom(1)
-		infoBar = infoStyle.Render(fmt.Sprintf("Working on: %s", app.currentSlug))
+		infoBar = infoStyle.Render(fmt.Sprintf("🔍 TARGET: %s 🔍", strings.ToUpper(app.currentSlug)))
 	}
 
 	// Main chat view with proper height
@@ -709,10 +737,11 @@ func (app *BubbleTeaApp) View() string {
 		inputContent = app.inputView.View()
 	}
 
-	// Create a separator line before status bar
+	// Create a hacker-themed separator line
 	separatorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240"))
-	separator := separatorStyle.Render(strings.Repeat("─", app.width))
+		Foreground(DarkGreen)
+	// Use matrix-style characters for separator
+	separator := separatorStyle.Render(strings.Repeat("═", app.width))
 
 	// Combine all components with proper spacing
 	var layout strings.Builder

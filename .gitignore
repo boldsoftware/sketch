@@ -14,3 +14,5 @@ sketch
 /kiro
 .kiro/
 .env
+.ps1
+./ssh

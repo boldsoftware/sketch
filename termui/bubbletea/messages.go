@@ -2,6 +2,7 @@ package bubbletea
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -82,28 +83,36 @@ func (m *MessagesComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewportContent()
 
 	case tea.KeyMsg:
-		// Handle keyboard navigation
+		// Enhanced keyboard navigation for better UX
 		switch msg.String() {
 		case "up", "k":
 			m.viewport.ScrollUp(1)
+			return m, nil // Don't pass to input component
 		case "down", "j":
 			m.viewport.ScrollDown(1)
-		case "pgup":
+			return m, nil // Don't pass to input component
+		case "pgup", "ctrl+b":
 			m.viewport.PageUp()
-		case "pgdn":
+			return m, nil
+		case "pgdn", "ctrl+f", "space":
 			m.viewport.PageDown()
+			return m, nil
 		case "ctrl+u":
 			m.viewport.HalfPageUp()
+			return m, nil
 		case "ctrl+d":
 			m.viewport.HalfPageDown()
-		case "home":
+			return m, nil
+		case "home", "g":
 			m.viewport.GotoTop()
-		case "end":
+			return m, nil
+		case "end", "G":
 			m.viewport.GotoBottom()
+			return m, nil
 		}
 	}
 
-	// Update viewport
+	// Update viewport with mouse support
 	m.viewport, cmd = m.viewport.Update(msg)
 	return m, cmd
 }
@@ -222,166 +231,170 @@ func (m *MessagesComponent) renderMessage(msg DisplayMessage) string {
 	return rendered
 }
 
-// renderUserMessage renders a user message in modern chat style
+// renderUserMessage renders a user message in hacker style
 func (m *MessagesComponent) renderUserMessage(msg DisplayMessage) string {
-	// Create message content with proper wrapping
-	content := m.wrapText(msg.Content, m.width-4) // Account for padding only
+	var content strings.Builder
 
-	// User header with modern styling - no borders, just color-coded title
-	header := m.userStyle.Render("▶ You")
+	// User message header with timestamp and hacker styling
+	timestamp := msg.Timestamp.Format("15:04:05")
+	header := fmt.Sprintf("╔══ [%s] 👤 USER ══╗", timestamp)
+	content.WriteString(m.userStyle.Render(header))
+	content.WriteString("\n")
 
-	// Create clean message layout without borders
-	messageContent := header + "\n" + content
-
-	// Add subtle padding and margin for readability
-	messageStyle := lipgloss.NewStyle().
-		PaddingLeft(2).
-		PaddingRight(2).
-		PaddingBottom(1).
-		MarginBottom(1)
-
-	return messageStyle.Render(messageContent)
-}
-
-// renderAgentMessage renders an agent message in modern chat style
-func (m *MessagesComponent) renderAgentMessage(msg DisplayMessage) string {
-	// Create message content with proper wrapping
-	content := m.wrapText(msg.Content, m.width-4) // Account for padding only
-
-	// Agent header with modern styling - no borders, just color-coded title
-	agentLabel := "▶ Agent"
-	if msg.Thinking {
-		agentLabel = "⏳ Agent (thinking)"
+	// Message content with proper wrapping and border
+	messageText := m.wrapText(msg.Content, m.width-6)
+	lines := strings.Split(messageText, "\n")
+	for _, line := range lines {
+		content.WriteString(m.userStyle.Render("║ "))
+		content.WriteString(line)
+		content.WriteString("\n")
 	}
-	header := m.agentStyle.Render(agentLabel)
+	content.WriteString(m.userStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
+	content.WriteString("\n")
 
-	// Create clean message layout without borders
-	messageContent := header + "\n" + content
-
-	// Add subtle padding and margin for readability
-	messageStyle := lipgloss.NewStyle().
-		PaddingLeft(2).
-		PaddingRight(2).
-		PaddingBottom(1).
-		MarginBottom(1)
-
-	return messageStyle.Render(messageContent)
+	return content.String()
 }
 
-// renderToolMessage renders a tool use message in modern chat style
+// renderAgentMessage renders an agent message in hacker style
+func (m *MessagesComponent) renderAgentMessage(msg DisplayMessage) string {
+	var content strings.Builder
+
+	// Agent message header with timestamp and hacker styling
+	timestamp := msg.Timestamp.Format("15:04:05")
+	header := fmt.Sprintf("╔══ [%s] 🤖 KIFARU AI ══╗", timestamp)
+	content.WriteString(m.agentStyle.Render(header))
+	content.WriteString("\n")
+
+	// Message content with proper wrapping and border
+	messageText := m.wrapText(msg.Content, m.width-6)
+	lines := strings.Split(messageText, "\n")
+	for _, line := range lines {
+		content.WriteString(m.agentStyle.Render("║ "))
+		content.WriteString(line)
+		content.WriteString("\n")
+	}
+	content.WriteString(m.agentStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
+	content.WriteString("\n")
+
+	return content.String()
+}
+
+// renderToolMessage renders a tool use message with enhanced formatting for bash commands
 func (m *MessagesComponent) renderToolMessage(msg DisplayMessage) string {
 	var content strings.Builder
 
-	// Tool header with modern styling - no borders, just color-coded title
-	toolLabel := fmt.Sprintf("🛠️ %s", msg.ToolName)
-	header := m.systemStyle.Render(toolLabel)
-	content.WriteString(header)
+	// Tool message header with timestamp and hacker styling
+	timestamp := msg.Timestamp.Format("15:04:05")
+	header := fmt.Sprintf("╔══ [%s] 🛠️ %s ══╗", timestamp, strings.ToUpper(msg.ToolName))
+	content.WriteString(m.systemStyle.Render(header))
 	content.WriteString("\n")
 
-	// Tool input with proper wrapping
+	// Enhanced input section for bash commands
 	if msg.ToolInput != "" {
-		inputContent := m.wrapText(msg.ToolInput, m.width-4)
-		inputStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243")).
-			Italic(true)
-		content.WriteString("Input: " + inputStyle.Render(inputContent))
+		// Parse tool input if it's JSON (for bash tool)
+		if m.isBashTool(msg.ToolName) {
+			m.renderBashToolInput(&content, msg.ToolInput)
+		} else {
+			// Generic tool input rendering
+			m.renderGenericToolInput(&content, msg.ToolInput)
+		}
+	}
+
+	// Enhanced result section
+	if msg.ToolError {
+		m.renderToolError(&content, msg.ToolResult)
+	} else if msg.ToolResult != "" {
+		if m.isBashTool(msg.ToolName) {
+			m.renderBashToolResult(&content, msg.ToolResult)
+		} else {
+			m.renderGenericToolResult(&content, msg.ToolResult)
+		}
+	}
+
+	content.WriteString(m.systemStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
+	content.WriteString("\n")
+
+	return content.String()
+}
+
+// renderErrorMessage renders an error message with hacker theme styling
+func (m *MessagesComponent) renderErrorMessage(msg DisplayMessage) string {
+	var content strings.Builder
+
+	// Error message header with timestamp and hacker styling
+	timestamp := msg.Timestamp.Format("15:04:05")
+	header := fmt.Sprintf("╔══ [%s] ❌ ERROR ══╗", timestamp)
+	content.WriteString(m.errorStyle.Render(header))
+	content.WriteString("\n")
+
+	// Message content with proper wrapping and border
+	messageText := m.wrapText(msg.Content, m.width-6)
+	lines := strings.Split(messageText, "\n")
+	for _, line := range lines {
+		content.WriteString(m.errorStyle.Render("║ "))
+		content.WriteString(line)
 		content.WriteString("\n")
 	}
+	content.WriteString(m.errorStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
+	content.WriteString("\n")
 
-	// Tool result or error
-	if msg.ToolError {
-		errorContent := m.wrapText(msg.ToolResult, m.width-4)
-		errorStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Bold(true)
-		content.WriteString("❌ Error: " + errorStyle.Render(errorContent))
-	} else if msg.ToolResult != "" {
-		resultContent := m.wrapText(msg.ToolResult, m.width-4)
-		resultStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("252"))
-		content.WriteString("Result: " + resultStyle.Render(resultContent))
-	}
-
-	// Add subtle padding and margin for readability - no borders
-	messageStyle := lipgloss.NewStyle().
-		PaddingLeft(2).
-		PaddingRight(2).
-		PaddingBottom(1).
-		MarginBottom(1)
-
-	return messageStyle.Render(content.String())
+	return content.String()
 }
 
-// renderErrorMessage renders an error message in modern chat style
-func (m *MessagesComponent) renderErrorMessage(msg DisplayMessage) string {
-	// Create message content with proper wrapping
-	content := m.wrapText(msg.Content, m.width-4) // Account for padding only
-
-	// Error header with modern styling - no borders, just color-coded title
-	header := m.errorStyle.Render("❌ Error")
-
-	// Create clean message layout without borders
-	messageContent := header + "\n" + content
-
-	// Add subtle padding and margin for readability
-	messageStyle := lipgloss.NewStyle().
-		PaddingLeft(2).
-		PaddingRight(2).
-		PaddingBottom(1).
-		MarginBottom(1)
-
-	return messageStyle.Render(messageContent)
-}
-
-// renderSystemMessage renders a system message in modern chat style
+// renderSystemMessage renders a system message with hacker theme styling
 func (m *MessagesComponent) renderSystemMessage(msg DisplayMessage) string {
-	// Create message content with proper wrapping
-	content := m.wrapText(msg.Content, m.width-4) // Account for padding only
+	var content strings.Builder
 
-	// System header with modern styling - no borders, just color-coded title
-	header := m.systemStyle.Render("ℹ️ System")
+	// System message header with timestamp and hacker styling
+	timestamp := msg.Timestamp.Format("15:04:05")
+	header := fmt.Sprintf("╔══ [%s] ℹ️ SYSTEM ══╗", timestamp)
+	content.WriteString(m.systemStyle.Render(header))
+	content.WriteString("\n")
 
-	// Create clean message layout without borders
-	messageContent := header + "\n" + content
+	// Message content with proper wrapping and border
+	messageText := m.wrapText(msg.Content, m.width-6)
+	lines := strings.Split(messageText, "\n")
+	for _, line := range lines {
+		content.WriteString(m.systemStyle.Render("║ "))
+		content.WriteString(line)
+		content.WriteString("\n")
+	}
+	content.WriteString(m.systemStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
+	content.WriteString("\n")
 
-	// Add subtle padding and margin for readability
-	messageStyle := lipgloss.NewStyle().
-		PaddingLeft(2).
-		PaddingRight(2).
-		PaddingBottom(1).
-		MarginBottom(1)
-
-	return messageStyle.Render(messageContent)
+	return content.String()
 }
 
-// renderCommitMessage renders a git commit message in modern chat style
+// renderCommitMessage renders a git commit message with hacker theme styling
 func (m *MessagesComponent) renderCommitMessage(msg DisplayMessage) string {
 	var content strings.Builder
 
-	// Commit header with modern styling - no borders, just color-coded title
-	header := m.systemStyle.Render("📝 Git Commits")
-	content.WriteString(header)
+	// Commit message header with timestamp and hacker styling
+	timestamp := msg.Timestamp.Format("15:04:05")
+	header := fmt.Sprintf("╔══ [%s] 📝 GIT COMMITS ══╗", timestamp)
+	content.WriteString(m.systemStyle.Render(header))
 	content.WriteString("\n")
 
+	// Render each commit with proper wrapping and border
 	for _, commit := range msg.Commits {
-		content.WriteString(fmt.Sprintf("%s %s\n",
-			m.userStyle.Render(commit.Hash[:7]),
-			commit.Subject))
+		content.WriteString(m.systemStyle.Render("║ "))
+		content.WriteString(m.userStyle.Render(commit.Hash[:7]))
+		content.WriteString(" ")
+		content.WriteString(commit.Subject)
+		content.WriteString("\n")
 
 		if commit.PushedBranch != "" {
-			content.WriteString(fmt.Sprintf("Pushed to branch: %s\n", commit.PushedBranch))
+			branchLine := fmt.Sprintf("Pushed to branch: %s", commit.PushedBranch)
+			content.WriteString(m.systemStyle.Render("║ "))
+			content.WriteString(branchLine)
+			content.WriteString("\n")
 		}
-		content.WriteString("\n")
 	}
 
-	// Add subtle padding and margin for readability - no borders
-	messageStyle := lipgloss.NewStyle().
-		PaddingLeft(2).
-		PaddingRight(2).
-		PaddingBottom(1).
-		MarginBottom(1)
+	content.WriteString(m.systemStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
+	content.WriteString("\n")
 
-	return messageStyle.Render(content.String())
+	return content.String()
 }
 
 // AddMessage adds a message to the display
@@ -532,4 +545,142 @@ func (m *MessagesComponent) wrapText(text string, width int) string {
 // key is a helper struct for viewport key mapping
 type key struct {
 	key tea.KeyType
+}
+
+// isBashTool checks if the tool is a bash-related tool that needs special formatting
+func (m *MessagesComponent) isBashTool(toolName string) bool {
+	return toolName == "bash" || toolName == "shell" || toolName == "command"
+}
+
+// renderBashToolInput renders bash tool input with enhanced formatting
+func (m *MessagesComponent) renderBashToolInput(content *strings.Builder, input string) {
+	// Try to parse JSON input for bash tool
+	var bashInput map[string]interface{}
+	if err := json.Unmarshal([]byte(input), &bashInput); err == nil {
+		// Successfully parsed JSON, extract command
+		if command, ok := bashInput["command"].(string); ok {
+			// Command section header
+			cmdHeaderStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#00FFFF")).
+				Bold(true)
+			content.WriteString(m.systemStyle.Render("║ "))
+			content.WriteString(cmdHeaderStyle.Render("💻 Command:"))
+			content.WriteString("\n")
+			
+			// Command with syntax highlighting style
+			cmdStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#39FF14")).
+				Background(lipgloss.Color("#1A1A1A")).
+				Padding(0, 1)
+			cmdLines := strings.Split(command, "\n")
+			for _, line := range cmdLines {
+				content.WriteString(m.systemStyle.Render("║ "))
+				content.WriteString(cmdStyle.Render("$ " + line))
+				content.WriteString("\n")
+			}
+			
+			// Add separator
+			content.WriteString(m.systemStyle.Render("╠"))
+			content.WriteString(m.systemStyle.Render(strings.Repeat("═", 78)))
+			content.WriteString(m.systemStyle.Render("╣"))
+			content.WriteString("\n")
+		}
+	} else {
+		// Fallback to generic input rendering
+		m.renderGenericToolInput(content, input)
+	}
+}
+
+// renderGenericToolInput renders generic tool input
+func (m *MessagesComponent) renderGenericToolInput(content *strings.Builder, input string) {
+	inputHeaderStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00FFFF")).
+		Bold(true)
+	content.WriteString(m.systemStyle.Render("║ "))
+	content.WriteString(inputHeaderStyle.Render("📥 Input:"))
+	content.WriteString("\n")
+	
+	inputText := m.wrapText(input, m.width-6)
+	lines := strings.Split(inputText, "\n")
+	for _, line := range lines {
+		content.WriteString(m.systemStyle.Render("║ "))
+		content.WriteString(line)
+		content.WriteString("\n")
+	}
+	
+	// Add separator
+	content.WriteString(m.systemStyle.Render("╠"))
+	content.WriteString(m.systemStyle.Render(strings.Repeat("═", 78)))
+	content.WriteString(m.systemStyle.Render("╣"))
+	content.WriteString("\n")
+}
+
+// renderBashToolResult renders bash tool result with enhanced formatting
+func (m *MessagesComponent) renderBashToolResult(content *strings.Builder, result string) {
+	// Output section header
+	outputHeaderStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00FF41")).
+		Bold(true)
+	content.WriteString(m.systemStyle.Render("║ "))
+	content.WriteString(outputHeaderStyle.Render("📤 Output:"))
+	content.WriteString("\n")
+	
+	// Style for command output
+	outputStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#C9D1D9")).
+		Background(lipgloss.Color("#0D1117"))
+	
+	// Process output line by line for better formatting
+	lines := strings.Split(result, "\n")
+	for _, line := range lines {
+		// Wrap long lines
+		if len(line) > m.width-6 {
+			wrappedLines := m.wrapText(line, m.width-6)
+			for _, wrappedLine := range strings.Split(wrappedLines, "\n") {
+				content.WriteString(m.systemStyle.Render("║ "))
+				content.WriteString(outputStyle.Render(wrappedLine))
+				content.WriteString("\n")
+			}
+		} else {
+			content.WriteString(m.systemStyle.Render("║ "))
+			content.WriteString(outputStyle.Render(line))
+			content.WriteString("\n")
+		}
+	}
+}
+
+// renderGenericToolResult renders generic tool result
+func (m *MessagesComponent) renderGenericToolResult(content *strings.Builder, result string) {
+	resultHeaderStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00FF41")).
+		Bold(true)
+	content.WriteString(m.systemStyle.Render("║ "))
+	content.WriteString(resultHeaderStyle.Render("📤 Result:"))
+	content.WriteString("\n")
+	
+	resultText := m.wrapText(result, m.width-6)
+	lines := strings.Split(resultText, "\n")
+	for _, line := range lines {
+		content.WriteString(m.systemStyle.Render("║ "))
+		content.WriteString(line)
+		content.WriteString("\n")
+	}
+}
+
+// renderToolError renders tool error with enhanced formatting
+func (m *MessagesComponent) renderToolError(content *strings.Builder, errorMsg string) {
+	errorHeaderStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FF0040")).
+		Bold(true)
+	content.WriteString(m.errorStyle.Render("║ "))
+	content.WriteString(errorHeaderStyle.Render("❌ Error:"))
+	content.WriteString("\n")
+	
+	errorText := m.wrapText(errorMsg, m.width-6)
+	lines := strings.Split(errorText, "\n")
+	for _, line := range lines {
+		content.WriteString(m.errorStyle.Render("║ "))
+		content.WriteString(line)
+		content.WriteString("\n")
+	}
 }

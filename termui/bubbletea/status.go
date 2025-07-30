@@ -33,13 +33,13 @@ func NewStatusComponent() UIComponent {
 	return &StatusComponent{
 		startTime: time.Now(),
 		stateStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
+			Foreground(lipgloss.Color("#00FF41")).
 			Bold(true),
 		budgetStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("35")).
+			Foreground(lipgloss.Color("#00FFFF")).
 			Bold(true),
 		operationsStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243")).
+			Foreground(lipgloss.Color("#8B949E")).
 			Italic(true),
 	}
 }
@@ -83,12 +83,14 @@ func (s *StatusComponent) View() string {
 	duration := time.Since(s.startTime).Round(time.Second)
 	rightStatus = fmt.Sprintf("session: %s", duration)
 
-	// Create the status bar with proper spacing
+	// Create the status bar with hacker theme styling
 	statusStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243")).
-		Background(lipgloss.Color("235")).
+		Foreground(lipgloss.Color("#C9D1D9")).
+		Background(lipgloss.Color("#0D1117")).
 		Padding(0, 1).
-		Width(s.width)
+		Width(s.width).
+		Border(lipgloss.NormalBorder(), true, false, false, false).
+		BorderForeground(lipgloss.Color("#008F11"))
 
 	// Calculate spacing to push right status to the right
 	leftStyled := s.stateStyle.Render(leftStatus)
