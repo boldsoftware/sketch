@@ -354,7 +354,7 @@ export class SketchTerminal extends SketchTailwindElement {
     return html`
       <div
         id="terminalView"
-        class="w-full bg-gray-100 rounded-lg overflow-hidden mb-5 shadow-md p-4"
+        class="w-full bg-gray-100 dark:bg-neutral-800 rounded-lg overflow-hidden mb-5 shadow-md p-4"
         style="height: 70vh;"
       >
         <div id="terminalContainer" class="w-full h-full overflow-hidden"></div>

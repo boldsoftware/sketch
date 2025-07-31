@@ -18,6 +18,7 @@ import "./sketch-push-button";
 import "./sketch-terminal";
 import "./sketch-timeline";
 import "./sketch-view-mode-select";
+import "./sketch-theme-toggle";
 import "./sketch-todo-panel";
 
 import { createRef } from "lit/directives/ref.js";
@@ -951,6 +952,8 @@ export abstract class SketchAppShellBase extends SketchTailwindElement {
             </svg>
             <span class="max-sm:hidden sm:max-xl:hidden">End</span>
           </button>
+
+          <sketch-theme-toggle></sketch-theme-toggle>
 
           <div
             class="flex items-center text-xs mr-2.5 cursor-pointer"

@@ -324,7 +324,7 @@ export class SketchDiff2View extends SketchTailwindElement {
 
   render() {
     return html`
-      <div class="px-4 py-2 border-b border-gray-300 bg-gray-100 flex-shrink-0">
+      <div class="px-4 py-2 border-b border-gray-300 dark:border-neutral-600 bg-gray-100 dark:bg-neutral-800 flex-shrink-0">
         <div class="flex flex-col gap-3">
           <div class="w-full flex items-center gap-3">
             <sketch-diff-range-picker
@@ -351,7 +351,7 @@ export class SketchDiff2View extends SketchTailwindElement {
     return html`
       <div class="flex items-center gap-2">
         <select
-          class="min-w-[200px] px-3 py-2 border border-gray-400 rounded bg-white text-sm cursor-pointer focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+          class="min-w-[200px] px-3 py-2 border border-gray-400 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-sm text-gray-900 dark:text-neutral-100 cursor-pointer focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-100 dark:disabled:bg-neutral-700 disabled:text-gray-500 dark:disabled:text-neutral-500 disabled:cursor-not-allowed"
           .value="${this.selectedFile}"
           @change="${this.handleFileSelection}"
           ?disabled="${fileCount === 0}"
@@ -382,7 +382,7 @@ export class SketchDiff2View extends SketchTailwindElement {
     return html`
       <div class="relative">
         <button
-          class="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 border border-gray-300 rounded hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-neutral-300 border border-gray-300 dark:border-neutral-600 rounded hover:bg-gray-200 dark:hover:bg-neutral-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           @click="${this.toggleUntrackedFilesPopup}"
           type="button"
         >
@@ -405,7 +405,7 @@ export class SketchDiff2View extends SketchTailwindElement {
         ${this.showUntrackedPopup
           ? html`
               <div
-                class="absolute top-full left-0 mt-2 w-80 bg-white border border-gray-300 rounded-lg shadow-lg z-50"
+                class="absolute top-full left-0 mt-2 w-80 bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 rounded-lg shadow-lg z-50"
               >
                 <div class="p-4">
                   <div class="flex items-start gap-3 mb-3">
@@ -423,10 +423,10 @@ export class SketchDiff2View extends SketchTailwindElement {
                       />
                     </svg>
                     <div class="flex-1">
-                      <div class="font-medium text-gray-900 mb-1">
+                      <div class="font-medium text-gray-900 dark:text-neutral-100 mb-1">
                         ${fileCountText}
                       </div>
-                      <div class="text-sm text-gray-600 mb-3">
+                      <div class="text-sm text-gray-600 dark:text-neutral-400 mb-3">
                         These files are not tracked by git. They will be lost if
                         the session ends now. The agent typically does not add
                         files to git until it is ready for feedback.
@@ -435,11 +435,11 @@ export class SketchDiff2View extends SketchTailwindElement {
                   </div>
 
                   <div class="max-h-32 overflow-y-auto">
-                    <div class="text-sm text-gray-700">
+                    <div class="text-sm text-gray-700 dark:text-neutral-300">
                       ${this.untrackedFiles.map(
                         (file) => html`
                           <div
-                            class="py-1 px-2 hover:bg-gray-100 rounded font-mono text-xs"
+                            class="py-1 px-2 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded font-mono text-xs"
                           >
                             ${file}
                           </div>
@@ -463,7 +463,7 @@ export class SketchDiff2View extends SketchTailwindElement {
     }
 
     if (this.error) {
-      return html`<div class="text-red-600 p-4">${this.error}</div>`;
+      return html`<div class="text-red-600 dark:text-red-400 p-4">${this.error}</div>`;
     }
 
     if (this.files.length === 0) {
@@ -669,10 +669,10 @@ export class SketchDiff2View extends SketchTailwindElement {
     if (!content) {
       return html`
         <div
-          class="flex flex-col border-b-4 border-gray-300 mb-0 last:border-b-0"
+          class="flex flex-col border-b-4 border-gray-300 dark:border-neutral-600 mb-0 last:border-b-0"
         >
           <div
-            class="bg-gray-100 border-b border-gray-300 px-4 py-2 font-medium text-sm text-gray-800 sticky top-0 z-10 shadow-sm flex justify-between items-center"
+            class="bg-gray-100 dark:bg-neutral-800 border-b border-gray-300 dark:border-neutral-600 px-4 py-2 font-medium text-sm text-gray-800 dark:text-neutral-200 sticky top-0 z-10 shadow-sm flex justify-between items-center"
           >
             ${this.renderFileHeader(file)}
           </div>
@@ -685,7 +685,7 @@ export class SketchDiff2View extends SketchTailwindElement {
 
     return html`
       <div
-        class="flex flex-col border-b-4 border-gray-300 mb-0 last:border-b-0"
+        class="flex flex-col border-b-4 border-gray-300 dark:border-neutral-600 mb-0 last:border-b-0"
       >
         <div
           class="bg-gray-100 border-b border-gray-300 px-4 py-2 font-medium text-sm text-gray-800 sticky top-0 z-10 shadow-sm flex justify-between items-center"

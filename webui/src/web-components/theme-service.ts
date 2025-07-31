@@ -84,7 +84,7 @@ export class ThemeService {
     if (saved === "light" || saved === "dark") {
       return saved;
     }
-    return "light"; // TODO: default to "system", once dark mode is ready.
+    return "system"; // Default to system preference
   }
 
   /**
