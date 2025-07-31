@@ -7,64 +7,97 @@
     <link rel="stylesheet" href="static/tailwind.css" />
     <script src="static/sketch-app-shell.js" async type="module"></script>
   </head>
-  <body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors min-h-screen">
+  <body
+    class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors min-h-screen"
+  >
     <div class="p-8 max-w-4xl mx-auto">
       <div class="flex items-center justify-between mb-8">
         <h1 class="text-3xl font-bold">Dark Mode Test</h1>
         <sketch-theme-toggle></sketch-theme-toggle>
       </div>
-      
+
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Card 1 -->
-        <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
-          <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Surface Colors</h2>
-          <p class="text-gray-600 dark:text-gray-400 mb-4">This card demonstrates surface colors and text.</p>
-          <button class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors">
+        <div
+          class="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700"
+        >
+          <h2
+            class="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100"
+          >
+            Surface Colors
+          </h2>
+          <p class="text-gray-600 dark:text-gray-400 mb-4">
+            This card demonstrates surface colors and text.
+          </p>
+          <button
+            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors"
+          >
             Primary Button
           </button>
         </div>
-        
+
         <!-- Card 2 -->
-        <div class="bg-white dark:bg-gray-900 p-6 rounded-lg border border-gray-300 dark:border-gray-600 shadow-sm">
-          <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Interactive Elements</h2>
+        <div
+          class="bg-white dark:bg-gray-900 p-6 rounded-lg border border-gray-300 dark:border-gray-600 shadow-sm"
+        >
+          <h2
+            class="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100"
+          >
+            Interactive Elements
+          </h2>
           <div class="space-y-3">
-            <input 
-              type="text" 
-              placeholder="Enter text..." 
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
-                     bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
-                     focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            <input
+              type="text"
+              placeholder="Enter text..."
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
-            <select class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
-                           bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+            <select
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            >
               <option>Option 1</option>
               <option>Option 2</option>
             </select>
           </div>
         </div>
-        
+
         <!-- Status indicators -->
-        <div class="bg-gray-100 dark:bg-gray-700 p-6 rounded-lg col-span-1 md:col-span-2">
-          <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Status Indicators</h2>
+        <div
+          class="bg-gray-100 dark:bg-gray-700 p-6 rounded-lg col-span-1 md:col-span-2"
+        >
+          <h2
+            class="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100"
+          >
+            Status Indicators
+          </h2>
           <div class="flex space-x-4">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+            <span
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+            >
               Success
             </span>
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+            <span
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+            >
               Warning
             </span>
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+            <span
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+            >
               Error
             </span>
           </div>
         </div>
       </div>
-      
-      <div class="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-        <h3 class="font-semibold text-blue-900 dark:text-blue-200 mb-2">Theme Information</h3>
+
+      <div
+        class="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
+      >
+        <h3 class="font-semibold text-blue-900 dark:text-blue-200 mb-2">
+          Theme Information
+        </h3>
         <p class="text-blue-700 dark:text-blue-300 text-sm">
-          Click the theme toggle button to cycle between light, dark, and system modes.
-          The page should transition smoothly between themes.
+          Click the theme toggle button to cycle between light, dark, and system
+          modes. The page should transition smoothly between themes.
         </p>
       </div>
     </div>

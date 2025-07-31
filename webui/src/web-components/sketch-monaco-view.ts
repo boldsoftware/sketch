@@ -348,7 +348,11 @@ export class CodeDiffEditor extends SketchTailwindElement {
                 .commentBoxPosition.left}px;"
             >
               <div class="flex justify-between items-center mb-2">
-                <h3 class="m-0 text-sm font-medium text-gray-900 dark:text-neutral-100">Add comment</h3>
+                <h3
+                  class="m-0 text-sm font-medium text-gray-900 dark:text-neutral-100"
+                >
+                  Add comment
+                </h3>
                 <button
                   class="bg-none border-none cursor-pointer text-base text-gray-600 dark:text-neutral-400 px-1.5 py-0.5 hover:text-gray-800 dark:hover:text-neutral-200"
                   @click="${this.closeCommentBox}"

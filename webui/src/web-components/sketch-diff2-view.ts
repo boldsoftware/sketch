@@ -324,7 +324,9 @@ export class SketchDiff2View extends SketchTailwindElement {
 
   render() {
     return html`
-      <div class="px-4 py-2 border-b border-gray-300 dark:border-neutral-600 bg-gray-100 dark:bg-neutral-800 flex-shrink-0">
+      <div
+        class="px-4 py-2 border-b border-gray-300 dark:border-neutral-600 bg-gray-100 dark:bg-neutral-800 flex-shrink-0"
+      >
         <div class="flex flex-col gap-3">
           <div class="w-full flex items-center gap-3">
             <sketch-diff-range-picker
@@ -423,10 +425,14 @@ export class SketchDiff2View extends SketchTailwindElement {
                       />
                     </svg>
                     <div class="flex-1">
-                      <div class="font-medium text-gray-900 dark:text-neutral-100 mb-1">
+                      <div
+                        class="font-medium text-gray-900 dark:text-neutral-100 mb-1"
+                      >
                         ${fileCountText}
                       </div>
-                      <div class="text-sm text-gray-600 dark:text-neutral-400 mb-3">
+                      <div
+                        class="text-sm text-gray-600 dark:text-neutral-400 mb-3"
+                      >
                         These files are not tracked by git. They will be lost if
                         the session ends now. The agent typically does not add
                         files to git until it is ready for feedback.
@@ -463,7 +469,9 @@ export class SketchDiff2View extends SketchTailwindElement {
     }
 
     if (this.error) {
-      return html`<div class="text-red-600 dark:text-red-400 p-4">${this.error}</div>`;
+      return html`<div class="text-red-600 dark:text-red-400 p-4">
+        ${this.error}
+      </div>`;
     }
 
     if (this.files.length === 0) {
