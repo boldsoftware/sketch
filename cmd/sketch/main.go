@@ -284,7 +284,7 @@ func parseCLIFlags() CLIFlags {
 	internalFlags := flag.NewFlagSet("sketch-internal", flag.ContinueOnError)
 
 	// User-visible flags
-	userFlags.StringVar(&flags.addr, "addr", "localhost:0", "local HTTP server")
+	userFlags.StringVar(&flags.addr, "addr", "0.0.0.0:0", "HTTP server address (0.0.0.0:0 allows network access)")
 	userFlags.StringVar(&flags.skabandAddr, "skaband-addr", "", "URL of the skaband server; set to empty to disable sketch.dev integration (default: disabled)")
 	userFlags.StringVar(&flags.skabandAddr, "ska-band-addr", "", "URL of the skaband server; set to empty to disable sketch.dev integration (alias for -skaband-addr)")
 	userFlags.BoolVar(&flags.unsafe, "unsafe", false, "run without a docker container")
