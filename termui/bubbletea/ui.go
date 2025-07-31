@@ -682,6 +682,46 @@ func (app *BubbleTeaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return app.handleCommand(msg)
 	case tea.WindowSizeMsg:
 		return app.handleWindowResize(msg)
+	default:
+		// Forward unknown messages to child components
+		var cmds []tea.Cmd
+		
+		// Update input component
+		if app.input != nil {
+			model, cmd := app.input.Update(msg)
+			if animatedInput, ok := model.(*AnimatedInputComponent); ok {
+				app.input = animatedInput
+			}
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		
+		// Update messages component
+		if app.messages != nil {
+			model, cmd := app.messages.Update(msg)
+			if animatedMessages, ok := model.(*AnimatedMessagesComponent); ok {
+				app.messages = animatedMessages
+			}
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		
+		// Update status component
+		if app.status != nil {
+			model, cmd := app.status.Update(msg)
+			if animatedStatus, ok := model.(*AnimatedStatusComponent); ok {
+				app.status = animatedStatus
+			}
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		
+		if len(cmds) > 0 {
+			return app, tea.Batch(cmds...)
+		}
 	}
 
 	return app, nil
