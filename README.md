@@ -19,7 +19,7 @@ Sketch runs in your terminal, has a web UI, understands your code, and helps
 you get work done. To keep your environment pristine, sketch starts a docker
 container and outputs its work onto a branch in your host git repository.
 
-Sketch helps with most programming environments, but Sketch has extra goodies for Go.
+Sketch supports multiple LLM providers and models, including Claude 4, GPT-4.1, Google Gemini 2.5, and specialized coding models like Qwen3-Coder. It works with most programming environments, but has extra goodies for Go.
 
 <img src="https://storage.googleapis.com/sketch-assets/screenshot.jpg" alt="Sketch Screenshot" width="800"/>
 
@@ -48,6 +48,27 @@ $ make
 $ ./sketch
 ```
 
+### Choose Your Model
+
+Sketch supports multiple AI models. Use `-model` to select one:
+
+```sh
+# Use Claude 4 (default)
+sketch
+
+# Use GPT-4.1
+sketch -model gpt4.1
+
+# Use Google Gemini 2.5
+sketch -model gemini
+
+# Use Qwen3-Coder for specialized coding tasks
+sketch -model qwen
+
+# List all available models
+sketch -list-models
+```
+
 ## 🔧 Requirements
 
 Currently, Sketch runs on MacOS and Linux. It uses Docker for containers.
@@ -60,6 +81,33 @@ Currently, Sketch runs on MacOS and Linux. It uses Docker for containers.
 
 The [sketch.dev](https://sketch.dev) service is used to provide access
 to an LLM service and give you a way to access the web UI from anywhere.
+
+### Key Options
+
+- **`-open=false`**: Use CLI-only mode (no browser)
+- **`-unsafe`**: Run without Docker container (use with caution)
+- **`-skaband-addr=""`**: Run entirely offline with your own API key
+- **`-max-dollars 5`**: Set spending limits per turn
+- **`-one-shot "implement user auth"`**: Run a single command and exit
+- **`-model qwen`**: Choose your preferred AI model
+- **`-branch-prefix myfeature/`**: Customize git branch naming
+
+### Running Offline
+
+You can run Sketch entirely without the sketch.dev service by providing your own API keys:
+
+```sh
+# With Anthropic Claude
+ANTHROPIC_API_KEY=your-key sketch -skaband-addr=""
+
+# With OpenAI GPT models
+OPENAI_API_KEY=your-key sketch -skaband-addr="" -model gpt4.1
+
+# With Google Gemini
+GEMINI_API_KEY=your-key sketch -skaband-addr="" -model gemini
+```
+
+This gives you full control over your data and API usage while still benefiting from Sketch's capabilities.
 
 ## 🤝 Community & Feedback
 
@@ -77,18 +125,32 @@ when the Sketch agent's turn is done, and there's something to look at.
 
 ### How Sketch Works
 
-<!-- TODO: innie/outtie picture -->
+Sketch uses a two-layer architecture:
+
+**Outer Sketch** (your machine):
+- Runs the CLI and web UI
+- Manages Docker containers
+- Handles git integration and branch management
+
+**Inner Sketch** (Docker container):
+- Runs the AI agent in an isolated sandbox
+- Executes code changes and tool calls
+- Makes git commits that are pushed back to your host
 
 When you start Sketch, it:
 
-1. Creates a Dockerfile
-2. Builds it
-3. Copies your repository into it
-4. Starts a Docker container with the "inside" Sketch running
+1. Creates a custom Dockerfile for your project
+2. Builds a container with your codebase
+3. Starts the AI agent inside the container
+4. Sets up git integration between container and host
 
-This design lets you **run multiple sketches in parallel** since they each have their own sandbox. It also lets Sketch work without worry: it can trash its own container, but it can't trash your machine.
+This design provides several benefits:
+- **Safety**: The AI can't damage your host system
+- **Isolation**: Each session runs in its own clean environment
+- **Parallelism**: Run multiple Sketch sessions simultaneously
+- **Reproducibility**: Consistent environment for every run
 
-Sketch's agentic loop uses tool calls (mostly shell commands, but also a handful of other important tools) to allow the LLM to interact with your codebase.
+The AI agent uses tool calls including shell commands, file operations, git commands, browser automation, and code analysis tools to understand and modify your codebase.
 
 ### Getting Your Git Changes Out
 
@@ -155,10 +217,14 @@ This makes `http://localhost:8000/` on your machine point to `localhost:8888` in
 
 ### Using Browser Tools
 
-You can ask Sketch to browse a web page and take screenshots. There are tools
-both for taking screenshots and "reading images", the latter of which sends the
-image to the LLM. This functionality is handy if you're working on a web page and
-want to see what the in-progress change looks like.
+Sketch includes powerful browser automation capabilities:
+
+- **Screenshots**: Take screenshots of web pages or specific elements
+- **Visual analysis**: Send images to the LLM for analysis and feedback
+- **Web interaction**: Navigate pages, click buttons, fill forms, and interact with web UIs
+- **Development workflow**: Perfect for testing web applications and reviewing UI changes
+
+This is especially useful when working on web applications - you can ask Sketch to start your dev server, take screenshots, and provide visual feedback on your changes.
 
 ## ❓ FAQ
 
@@ -181,5 +247,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 Sketch is open source.
 It is right here in this repository!
 Have a look around and mod away.
-
-If you want to run Sketch entirely without the sketch.dev service, you can set the flag `-skaband-addr=""` and then provide an `ANTHROPIC_API_KEY` environment variable. (More LLM services coming soon!)
