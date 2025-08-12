@@ -17,9 +17,9 @@ func NewCompatibilityWrapper(agent loop.CodingAgent, httpURL string) *Compatibil
 	ui := New(agent, httpURL)
 
 	// Initialize all components
-	ui.app.messages = NewAnimatedMessagesComponent()
-	ui.app.input = NewAnimatedInputComponent()
-	ui.app.status = NewAnimatedStatusComponent()
+	ui.app.messages = NewMessagesComponent().(*MessagesComponent)
+	ui.app.input = NewInputComponent().(*InputComponent)
+	ui.app.status = NewStatusComponent().(*StatusComponent)
 
 	// Set up component references
 	ui.app.messages.SetAgent(agent)

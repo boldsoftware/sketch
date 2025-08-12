@@ -29,6 +29,11 @@ var (
 	MutedText     = lipgloss.Color("#8B949E")
 )
 
+const (
+	focusMessages = iota
+	focusInput
+)
+
 // BubbleTeaApp is the main Bubble Tea application model
 type BubbleTeaApp struct {
 	agent   loop.CodingAgent
@@ -36,9 +41,9 @@ type BubbleTeaApp struct {
 	ctx     context.Context
 
 	// Enhanced UI components with animations
-	messages        *AnimatedMessagesComponent
-	input           *AnimatedInputComponent
-	status          *AnimatedStatusComponent
+	messages        *MessagesComponent
+	input           *InputComponent
+	status          *StatusComponent
 	progressTracker *ProgressTracker
 
 	// Message routing and queue management
@@ -57,14 +62,15 @@ type BubbleTeaApp struct {
 	iteratorActive   bool
 
 	// UI state
-	width  int
-	height int
-	ready  bool
+	width        int
+	height       int
+	ready        bool
+	focusedPanel int
 
 	// Animation states
-	thinking      bool
-	processing    bool
-	currentTool   string
+	thinking    bool
+	processing  bool
+	currentTool string
 
 	// Message routing
 	messageHandlers map[MessageType]MessageHandler
@@ -132,6 +138,7 @@ func New(agent loop.CodingAgent, httpURL string) *BubbleTeaUI {
 		messageQueue:   NewMessageQueue(1000), // Buffer up to 1000 messages
 		router:         NewMessageRouter(),
 		errorHandler:   NewErrorHandler(nil), // Initialize error handler
+		focusedPanel:   focusInput,
 	}
 	return &BubbleTeaUI{
 		app:   app,
@@ -246,15 +253,15 @@ func (ui *BubbleTeaUI) Run(ctx context.Context) error {
 func (ui *BubbleTeaUI) initializeComponents() error {
 	// Create animated components if they don't exist
 	if ui.app.messages == nil {
-		ui.app.messages = NewAnimatedMessagesComponent()
+		ui.app.messages = NewMessagesComponent().(*MessagesComponent)
 	}
 
 	if ui.app.input == nil {
-		ui.app.input = NewAnimatedInputComponent()
+		ui.app.input = NewInputComponent().(*InputComponent)
 	}
 
 	if ui.app.status == nil {
-		ui.app.status = NewAnimatedStatusComponent()
+		ui.app.status = NewStatusComponent().(*StatusComponent)
 	}
 
 	if ui.app.progressTracker == nil {
@@ -276,7 +283,6 @@ func (ui *BubbleTeaUI) initializeComponents() error {
 	// InputComponent should NOT handle display messages - only manage its own state
 
 	// Set up input component with URL
-	ui.app.input.SetPrompt(ui.app.httpURL, false)
 	// Ensure the input is focused
 	ui.app.input.textInput.Focus()
 
@@ -458,9 +464,7 @@ func (ui *BubbleTeaUI) processStateTransitions(ctx context.Context) {
 
 		// Update status component if available
 		if ui.app.status != nil {
-			if ui.app.status.StatusComponent != nil {
-				ui.app.status.StatusComponent.UpdateState(transition.To.String())
-			}
+			ui.app.status.UpdateState(transition.To.String())
 		}
 	}
 }
@@ -678,47 +682,54 @@ func (app *BubbleTeaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return app.handleAgentMessage(msg)
 	case userInputMsg:
 		return app.handleUserInput(msg)
+	case userMessageDisplayMsg:
+		return app.handleUserMessageDisplay(msg)
 	case commandMsg:
 		return app.handleCommand(msg)
+	case inputStateResetMsg:
+		return app.handleInputStateReset(msg)
 	case tea.WindowSizeMsg:
 		return app.handleWindowResize(msg)
 	default:
-		// Forward unknown messages to child components
+		// Forward unknown messages to child components that are not key presses
+		if _, ok := msg.(tea.KeyMsg); ok {
+			return app, nil
+		}
 		var cmds []tea.Cmd
-		
+
 		// Update input component
 		if app.input != nil {
 			model, cmd := app.input.Update(msg)
-			if animatedInput, ok := model.(*AnimatedInputComponent); ok {
-				app.input = animatedInput
+			if input, ok := model.(*InputComponent); ok {
+				app.input = input
 			}
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
 		}
-		
+
 		// Update messages component
 		if app.messages != nil {
 			model, cmd := app.messages.Update(msg)
-			if animatedMessages, ok := model.(*AnimatedMessagesComponent); ok {
-				app.messages = animatedMessages
+			if messages, ok := model.(*MessagesComponent); ok {
+				app.messages = messages
 			}
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
 		}
-		
+
 		// Update status component
 		if app.status != nil {
 			model, cmd := app.status.Update(msg)
-			if animatedStatus, ok := model.(*AnimatedStatusComponent); ok {
-				app.status = animatedStatus
+			if status, ok := model.(*StatusComponent); ok {
+				app.status = status
 			}
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
 		}
-		
+
 		if len(cmds) > 0 {
 			return app, tea.Batch(cmds...)
 		}
@@ -735,6 +746,9 @@ func (app *BubbleTeaApp) View() string {
 
 	// Calculate available space for chat view
 	chatHeight := app.height - 10 // Reserve more space for better spacing and separator
+	if chatHeight < 0 {
+		chatHeight = 0
+	}
 
 	// Create hacker-themed header
 	headerStyle := lipgloss.NewStyle().
@@ -773,11 +787,10 @@ func (app *BubbleTeaApp) View() string {
 	// Main chat view with proper height
 	var chatContent string
 	if app.messages != nil {
+		app.messages.focused = app.focusedPanel == focusMessages
 		// Update messages view height
-		if app.messages.MessagesComponent != nil {
-			app.messages.MessagesComponent.height = chatHeight
-			app.messages.MessagesComponent.viewport.Height = chatHeight
-		}
+		app.messages.height = chatHeight
+		app.messages.viewport.Height = chatHeight
 		chatContent = app.messages.View()
 	}
 
@@ -832,31 +845,37 @@ func (app *BubbleTeaApp) View() string {
 
 // handleKeyPress processes keyboard input
 func (app *BubbleTeaApp) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	app.mu.Lock()
+	defer app.mu.Unlock()
 	// Global key handlers
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return app, tea.Quit
+	case "tab":
+		app.focusedPanel = (app.focusedPanel + 1) % 2
+		return app, nil
 	}
 
-	// First, let the input component handle the key press
-	if app.input != nil {
-		model, cmd := app.input.Update(msg)
-		if animatedInput, ok := model.(*AnimatedInputComponent); ok {
-			app.input = animatedInput
+	// First, let the focused component handle the key press
+	if app.focusedPanel == focusInput {
+		if app.input != nil {
+			model, cmd := app.input.Update(msg)
+			if input, ok := model.(*InputComponent); ok {
+				app.input = input
+			}
+			if cmd != nil {
+				return app, cmd
+			}
 		}
-		if cmd != nil {
-			return app, cmd
-		}
-	}
-
-	// Then, let the messages view handle the key press for scrolling
-	if app.messages != nil {
-		model, cmd := app.messages.Update(msg)
-		if animatedMessages, ok := model.(*AnimatedMessagesComponent); ok {
-			app.messages = animatedMessages
-		}
-		if cmd != nil {
-			return app, cmd
+	} else if app.focusedPanel == focusMessages {
+		if app.messages != nil {
+			model, cmd := app.messages.Update(msg)
+			if messages, ok := model.(*MessagesComponent); ok {
+				app.messages = messages
+			}
+			if cmd != nil {
+				return app, cmd
+			}
 		}
 	}
 
@@ -885,11 +904,6 @@ func (app *BubbleTeaApp) handleAgentMessage(msg agentMessageMsg) (tea.Model, tea
 		}
 	}
 
-	// Add completion message to reset input thinking state
-	cmds = append(cmds, func() tea.Msg {
-		return AgentResponseCompleteMsg{}
-	})
-
 	// Return batch command if we have multiple commands
 	if len(cmds) > 1 {
 		return app, tea.Batch(cmds...)
@@ -902,27 +916,70 @@ func (app *BubbleTeaApp) handleAgentMessage(msg agentMessageMsg) (tea.Model, tea
 
 // handleUserInput processes user text input
 func (app *BubbleTeaApp) handleUserInput(msg userInputMsg) (tea.Model, tea.Cmd) {
-	// Route user message to MessagesComponent for display
-	if routedCmds := app.router.RouteMessage(msg); routedCmds != nil && len(routedCmds) > 0 {
-		// Send input to the agent and route to display
-		if app.ctx != nil {
-			app.agent.UserMessage(app.ctx, msg.input)
-		}
-		return app, tea.Batch(routedCmds...)
-	}
-
-	// Fallback: just send to agent if routing fails
+	// Send input to the agent (the display is handled separately by userMessageDisplayMsg)
 	if app.ctx != nil {
 		app.agent.UserMessage(app.ctx, msg.input)
 	}
 	return app, nil
 }
 
+// handleUserMessageDisplay processes immediate user message display
+func (app *BubbleTeaApp) handleUserMessageDisplay(msg userMessageDisplayMsg) (tea.Model, tea.Cmd) {
+	// Route directly to messages component for immediate display
+	if app.messages != nil {
+		return app, app.messages.HandleUserMessageDisplay(msg.input, msg.timestamp)
+	}
+	return app, nil
+}
+
+// handleInputStateReset processes input state reset messages
+func (app *BubbleTeaApp) handleInputStateReset(msg inputStateResetMsg) (tea.Model, tea.Cmd) {
+	// Forward to input component
+	if app.input != nil {
+		model, cmd := app.input.Update(msg)
+		if input, ok := model.(*InputComponent); ok {
+			app.input = input
+		}
+		return app, cmd
+	}
+	return app, nil
+}
+
 // handleCommand processes special commands
 func (app *BubbleTeaApp) handleCommand(msg commandMsg) (tea.Model, tea.Cmd) {
-	// Handle special commands like help, budget, etc.
-	// This will be implemented in subsequent tasks
-	return app, nil
+	// Handle special commands
+	switch msg.command {
+	case "/clear":
+		// Clear the messages
+		if app.messages != nil {
+			app.messages.messages = []DisplayMessage{}
+			app.messages.messageCache = make(map[int]string)
+			app.messages.updateViewportContent()
+		}
+		return app, nil
+	case "/help":
+		// Show help message
+		if app.messages != nil {
+			helpMsg := DisplayMessage{
+				Type:      loop.ErrorMessageType, // Use error type for system messages
+				Content:   "Available commands:\n/clear - Clear chat history\n/help - Show this help\n\nKeyboard shortcuts:\nTab - Switch focus between chat and input\nj/k - Scroll messages when chat is focused\nCtrl+C - Cancel operation\nCtrl+L - Clear screen\n\nWhen messages are focused (green border):\nj/k - Scroll line by line\nu/d - Half page scroll\nb/f - Full page scroll\ng/G - Go to top/bottom",
+				Timestamp: time.Now(),
+			}
+			app.messages.AddMessage(helpMsg)
+		}
+		return app, nil
+	default:
+		// Unknown command
+		if app.messages != nil {
+			errorMsg := DisplayMessage{
+				Type:      loop.ErrorMessageType,
+				Content:   fmt.Sprintf("Unknown command: %s. Type /help for available commands.", msg.command),
+				Timestamp: time.Now(),
+			}
+			app.messages.AddMessage(errorMsg)
+		}
+		return app, nil
+	}
 }
 
 // handleWindowResize handles terminal window resize events
@@ -937,8 +994,8 @@ func (app *BubbleTeaApp) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, t
 	// Update messages view size
 	if app.messages != nil {
 		model, cmd := app.messages.Update(msg)
-		if animatedMessages, ok := model.(*AnimatedMessagesComponent); ok {
-			app.messages = animatedMessages
+		if messages, ok := model.(*MessagesComponent); ok {
+			app.messages = messages
 		}
 		if cmd != nil {
 			cmds = append(cmds, cmd)
@@ -948,8 +1005,8 @@ func (app *BubbleTeaApp) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, t
 	// Update input view size
 	if app.input != nil {
 		model, cmd := app.input.Update(msg)
-		if animatedInput, ok := model.(*AnimatedInputComponent); ok {
-			app.input = animatedInput
+		if input, ok := model.(*InputComponent); ok {
+			app.input = input
 		}
 		if cmd != nil {
 			cmds = append(cmds, cmd)
@@ -959,8 +1016,8 @@ func (app *BubbleTeaApp) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, t
 	// Update status bar size
 	if app.status != nil {
 		model, cmd := app.status.Update(msg)
-		if animatedStatus, ok := model.(*AnimatedStatusComponent); ok {
-			app.status = animatedStatus
+		if status, ok := model.(*StatusComponent); ok {
+			app.status = status
 		}
 		if cmd != nil {
 			cmds = append(cmds, cmd)
@@ -1008,24 +1065,24 @@ func NewMessagesComponent() UIComponent {
 func NewInputComponent() UIComponent {
 	// Create a text input for user input
 	ti := textinput.New()
-	ti.Placeholder = "Type your message or /path/to/file"
+	ti.Placeholder = "Type your message, /command, or /help for assistance"
 	ti.Focus()
 	ti.CharLimit = 2000
 	ti.Width = 80
 
 	return &InputComponent{
 		textInput:    ti,
-		history:      []string{},
-		historyIndex: -1,
 		prompt:       "▶",
-		thinking:     false,
-		multiLine:    false,
+		state:        InputStateIdle,
 		promptStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
+			Foreground(HackerGreen).
 			Bold(true).
 			PaddingRight(1),
 		inputStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15")),
+			Foreground(TextColor),
+		stateStyle: lipgloss.NewStyle().
+			Foreground(CyberBlue).
+			Italic(true),
 	}
 }
 

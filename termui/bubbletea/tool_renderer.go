@@ -28,18 +28,18 @@ func NewToolTemplateRenderer() *ToolTemplateRenderer {
 
 	// Create emoji map for different tool types
 	emojiMap := map[string]string{
-		"think":          "🧠",  // Brain for thinking
-		"bash":           "🖥️", // Terminal for bash commands
-		"patch":          "⌨️", // Keyboard for code editing
-		"browser":        "🌐",  // Globe for browser
-		"browser_click":  "🖱️", // Mouse for clicking
-		"browser_type":   "⌨️", // Keyboard for typing
-		"browser_wait":   "⏳",  // Hourglass for waiting
-		"codereview":     "🐛",  // Bug for code review
-		"multiplechoice": "📝",  // Notepad for multiple choice
-		"set-slug":       "🐌",  // Snail for slug
-		"error":          "❌",  // X for errors
-		"default":        "🛠️", // Wrench for default tool
+		"think":          "[THK]",  // Think indicator
+		"bash":           "[SH]", // Shell indicator
+		"patch":          "[PAT]", // Patch indicator
+		"browser":        "[BR]",  // Browser indicator
+		"browser_click":  "[CLK]", // Click indicator
+		"browser_type":   "[TYP]", // Type indicator
+		"browser_wait":   "[WAIT]",  // Wait indicator
+		"codereview":     "[REV]",  // Review indicator
+		"multiplechoice": "[MC]",  // Multiple choice
+		"set-slug":       "[SLUG]",  // Slug indicator
+		"error":          "[ERR]",  // Error indicator
+		"default":        "[T]", // Tool indicator
 	}
 
 	// Create styles for different tool states
@@ -133,6 +133,6 @@ func (r *ToolTemplateRenderer) isBackgroundTool(toolName string) bool {
 }
 
 // Tool template text
-const toolUseTemplTxt = `{{.ToolEmoji}} {{.Styles.toolName.Render .ToolName}}{{if .ToolSlow}} 🐢{{end}}{{if .ToolBackground}} 🥷{{end}}
+const toolUseTemplTxt = `{{.ToolEmoji}} {{.Styles.toolName.Render .ToolName}}{{if .ToolSlow}} [SLOW]{{end}}{{if .ToolBackground}} [BG]{{end}}
 {{.Styles.toolInput.Render .ToolInput}}
-{{if .ToolError}}{{.Styles.toolError.Render "〰️ Error:"}} {{.ToolResult}}{{else}}{{.Styles.toolResult.Render .ToolResult}}{{end}}`
+{{if .ToolError}}{{.Styles.toolError.Render "[ERR] Error:"}} {{.ToolResult}}{{else}}{{.Styles.toolResult.Render .ToolResult}}{{end}}`

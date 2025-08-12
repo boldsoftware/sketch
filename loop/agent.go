@@ -489,7 +489,7 @@ func (a *Agent) NewIterator(ctx context.Context, nextMessageIdx int) MessageIter
 		agent:          a,
 		ctx:            ctx,
 		nextMessageIdx: nextMessageIdx,
-		ch:             make(chan *AgentMessage, 100),
+		ch:             make(chan *AgentMessage, 1000),
 	}
 }
 
@@ -1121,7 +1121,7 @@ func NewAgent(config AgentConfig) *Agent {
 	agent := &Agent{
 		config:         config,
 		ready:          make(chan struct{}),
-		inbox:          make(chan string, 100),
+		inbox:          make(chan string, 1000),
 		subscribers:    make([]chan *AgentMessage, 0),
 		startedAt:      time.Now(),
 		originalBudget: config.Budget,
@@ -1678,8 +1678,16 @@ func (a *Agent) pushToOutbox(ctx context.Context, m AgentMessage) {
 	a.history = append(a.history, m)
 
 	// Notify all subscribers
-	for _, ch := range a.subscribers {
-		ch <- &m
+	for i, ch := range a.subscribers {
+		select {
+		case ch <- &m:
+			// Message sent successfully
+		default:
+			// Channel is full, indicating a slow client.
+			// To prevent blocking the agent, we'll drop the message for this subscriber.
+			// A more advanced implementation might disconnect the client here.
+			slog.WarnContext(ctx, "subscriber channel full, dropping message", "subscriber_index", i)
+		}
 	}
 }
 

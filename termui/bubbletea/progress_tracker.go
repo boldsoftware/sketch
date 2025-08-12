@@ -268,7 +268,7 @@ func (p *ProgressTracker) renderOperation(id string, op *Operation) string {
 		if len(lastDetail) > p.width-10 {
 			lastDetail = lastDetail[:p.width-13] + "..."
 		}
-		content.WriteString(p.progressStyle.Render(fmt.Sprintf("  💬 %s", lastDetail)))
+		content.WriteString(p.progressStyle.Render(fmt.Sprintf("  [MSG] %s", lastDetail)))
 		content.WriteString("\n")
 	}
 
@@ -279,7 +279,7 @@ func (p *ProgressTracker) renderOperation(id string, op *Operation) string {
 		if len(errorMsg) > p.width-10 {
 			errorMsg = errorMsg[:p.width-13] + "..."
 		}
-		content.WriteString(p.errorStyle.Render(fmt.Sprintf("  ❌ %s", errorMsg)))
+		content.WriteString(p.errorStyle.Render(fmt.Sprintf("  [ERR] %s", errorMsg)))
 		content.WriteString("\n")
 	}
 
@@ -289,15 +289,15 @@ func (p *ProgressTracker) renderOperation(id string, op *Operation) string {
 func (p *ProgressTracker) getStatusIcon(status OperationStatus) string {
 	switch status {
 	case StatusRunning:
-		return "🔄"
+		return "[RUN]"
 	case StatusComplete:
-		return "✅"
+		return "[OK]"
 	case StatusError:
-		return "❌"
+		return "[ERR]"
 	case StatusCancelled:
-		return "⏹️"
+		return "[STOP]"
 	default:
-		return "❓"
+		return "[?]"
 	}
 }
 

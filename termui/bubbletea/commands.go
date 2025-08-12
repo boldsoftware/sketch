@@ -82,11 +82,11 @@ Special commands:
 func (cp *CommandProcessor) handleBudgetCommand() tea.Cmd {
 	return func() tea.Msg {
 		if cp.agent == nil {
-			return systemMessageMsg{content: "❌ No agent available"}
+			return systemMessageMsg{content: "[ERR] No agent available"}
 		}
 
 		originalBudget := cp.agent.OriginalBudget()
-		content := fmt.Sprintf("💰 Budget summary:\n- Max total cost: $%.2f", originalBudget.MaxDollars)
+		content := fmt.Sprintf("[BUD] Budget summary:\n- Max total cost: $%.2f", originalBudget.MaxDollars)
 
 		return systemMessageMsg{content: content}
 	}
@@ -96,11 +96,11 @@ func (cp *CommandProcessor) handleBudgetCommand() tea.Cmd {
 func (cp *CommandProcessor) handleUsageCommand() tea.Cmd {
 	return func() tea.Msg {
 		if cp.agent == nil {
-			return systemMessageMsg{content: "❌ No agent available"}
+			return systemMessageMsg{content: "[ERR] No agent available"}
 		}
 
 		totalUsage := cp.agent.TotalUsage()
-		content := fmt.Sprintf(`💰 Current usage summary:
+		content := fmt.Sprintf(`[USD] Current usage summary:
 - Input tokens: %s
 - Output tokens: %s
 - Responses: %d
@@ -126,7 +126,7 @@ func (cp *CommandProcessor) handleBrowserCommand() tea.Cmd {
 			}
 			return systemMessageMsg{content: content}
 		} else {
-			return systemMessageMsg{content: "❌ No web URL available for this session"}
+			return systemMessageMsg{content: "[ERR] No web URL available for this session"}
 		}
 	}
 }
@@ -197,7 +197,7 @@ func (cp *CommandProcessor) handleShellCommand(input string) tea.Cmd {
 		content.WriteString(string(out))
 
 		if err != nil {
-			content.WriteString(fmt.Sprintf("\n❌ Command error: %v", err))
+			content.WriteString(fmt.Sprintf("\n[ERR] Command error: %v", err))
 		}
 
 		// Send to LLM if requested

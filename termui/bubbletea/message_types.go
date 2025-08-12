@@ -1,6 +1,8 @@
 package bubbletea
 
 import (
+	"time"
+
 	"sketch.dev/loop"
 )
 
@@ -45,3 +47,16 @@ func (m stateTransitionMsg) Type() string { return string(StateTransitionType) }
 type AgentResponseCompleteMsg struct{}
 
 func (m AgentResponseCompleteMsg) Type() string { return "agent_response_complete" }
+
+// inputStateResetMsg is sent to reset the input component state
+type inputStateResetMsg struct{}
+
+func (m inputStateResetMsg) Type() string { return "input_state_reset" }
+
+// userMessageDisplayMsg is sent to immediately display a user message
+type userMessageDisplayMsg struct {
+	input     string
+	timestamp time.Time
+}
+
+func (m userMessageDisplayMsg) Type() string { return "user_message_display" }

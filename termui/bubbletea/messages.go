@@ -45,6 +45,7 @@ type MessagesComponent struct {
 	agentStyle  lipgloss.Style
 	systemStyle lipgloss.Style
 	errorStyle  lipgloss.Style
+	focused     bool
 }
 
 // DisplayMessage represents a message to be displayed
@@ -83,30 +84,41 @@ func (m *MessagesComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewportContent()
 
 	case tea.KeyMsg:
-		// Enhanced keyboard navigation for better UX
+		if !m.focused {
+			return m, nil
+		}
+		// Enhanced keyboard navigation for better UX when messages component is focused
 		switch msg.String() {
 		case "up", "k":
+			// Scroll up by 1 line
 			m.viewport.ScrollUp(1)
-			return m, nil // Don't pass to input component
+			return m, nil
 		case "down", "j":
+			// Scroll down by 1 line
 			m.viewport.ScrollDown(1)
-			return m, nil // Don't pass to input component
-		case "pgup", "ctrl+b":
+			return m, nil
+		case "pgup", "ctrl+b", "b":
+			// Page up
 			m.viewport.PageUp()
 			return m, nil
-		case "pgdn", "ctrl+f", "space":
+		case "pgdn", "ctrl+f", "f", "space":
+			// Page down
 			m.viewport.PageDown()
 			return m, nil
-		case "ctrl+u":
+		case "ctrl+u", "u":
+			// Half page up
 			m.viewport.HalfPageUp()
 			return m, nil
-		case "ctrl+d":
+		case "ctrl+d", "d":
+			// Half page down
 			m.viewport.HalfPageDown()
 			return m, nil
-		case "home", "g":
+		case "home", "g", "gg":
+			// Go to top
 			m.viewport.GotoTop()
 			return m, nil
 		case "end", "G":
+			// Go to bottom
 			m.viewport.GotoBottom()
 			return m, nil
 		}
@@ -123,7 +135,16 @@ func (m *MessagesComponent) View() string {
 		return ""
 	}
 
-	return m.viewport.View()
+	borderStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240"))
+
+	if m.focused {
+		// Use hacker green when focused to indicate scrollable state
+		borderStyle = borderStyle.BorderForeground(HackerGreen)
+	}
+
+	return borderStyle.Width(m.width - 2).Height(m.height).Render(m.viewport.View())
 }
 
 // SetAgent sets the agent reference
@@ -165,7 +186,7 @@ func (m *MessagesComponent) updateViewportContent() {
 	// Render only the messages that are likely to be visible
 	for i := startIdx; i < len(m.messages); i++ {
 		content.WriteString(m.renderMessage(m.messages[i]))
-		content.WriteString("\n\n")
+		content.WriteString("\n")
 	}
 
 	// Create a temporary string builder for the indicator
@@ -240,8 +261,8 @@ func (m *MessagesComponent) renderUserMessage(msg DisplayMessage) string {
 	headerStyle := lipgloss.NewStyle().
 		Foreground(HackerGreen).
 		Bold(true)
-	
-	header := fmt.Sprintf("👤 %s", timestamp)
+
+	header := fmt.Sprintf("[U] %s", timestamp)
 	content.WriteString(headerStyle.Render(header))
 	content.WriteString("\n")
 
@@ -249,10 +270,10 @@ func (m *MessagesComponent) renderUserMessage(msg DisplayMessage) string {
 	messageStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFFFFF")).
 		PaddingLeft(3)
-	
+
 	messageText := m.wrapText(msg.Content, m.width-4)
 	content.WriteString(messageStyle.Render(messageText))
-	content.WriteString("\n\n")
+	content.WriteString("\n")
 
 	return content.String()
 }
@@ -266,8 +287,8 @@ func (m *MessagesComponent) renderAgentMessage(msg DisplayMessage) string {
 	headerStyle := lipgloss.NewStyle().
 		Foreground(CyberBlue).
 		Bold(true)
-	
-	header := fmt.Sprintf("🤖 Kifaru %s", timestamp)
+
+	header := fmt.Sprintf("[A] Kifaru %s", timestamp)
 	content.WriteString(headerStyle.Render(header))
 	content.WriteString("\n")
 
@@ -275,10 +296,10 @@ func (m *MessagesComponent) renderAgentMessage(msg DisplayMessage) string {
 	messageStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#E6E6E6")).
 		PaddingLeft(3)
-	
+
 	messageText := m.wrapText(msg.Content, m.width-4)
 	content.WriteString(messageStyle.Render(messageText))
-	content.WriteString("\n\n")
+	content.WriteString("\n")
 
 	return content.String()
 }
@@ -289,8 +310,9 @@ func (m *MessagesComponent) renderToolMessage(msg DisplayMessage) string {
 
 	// Tool message header with timestamp and hacker styling
 	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] 🛠️ %s ══╗", timestamp, strings.ToUpper(msg.ToolName))
-	content.WriteString(m.systemStyle.Render(header))
+	header := fmt.Sprintf("[T] %s (%s)", strings.ToUpper(msg.ToolName), timestamp)
+	headerStyle := lipgloss.NewStyle().Bold(true)
+	content.WriteString(m.systemStyle.Render(headerStyle.Render(header)))
 	content.WriteString("\n")
 
 	// Enhanced input section for specialized tools
@@ -318,9 +340,6 @@ func (m *MessagesComponent) renderToolMessage(msg DisplayMessage) string {
 		}
 	}
 
-	content.WriteString(m.systemStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
-	content.WriteString("\n")
-
 	return content.String()
 }
 
@@ -330,19 +349,14 @@ func (m *MessagesComponent) renderErrorMessage(msg DisplayMessage) string {
 
 	// Error message header with timestamp and hacker styling
 	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] ❌ Error ══╗", timestamp)
+	header := fmt.Sprintf("[E] Error (%s)", timestamp)
 	content.WriteString(m.errorStyle.Render(header))
 	content.WriteString("\n")
 
 	// Message content with proper wrapping and border
 	messageText := m.wrapText(msg.Content, m.width-6)
-	lines := strings.Split(messageText, "\n")
-	for _, line := range lines {
-		content.WriteString(m.errorStyle.Render("║ "))
-		content.WriteString(line)
-		content.WriteString("\n")
-	}
-	content.WriteString(m.errorStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
+	messageStyle := lipgloss.NewStyle().PaddingLeft(2)
+	content.WriteString(messageStyle.Render(messageText))
 	content.WriteString("\n")
 
 	return content.String()
@@ -354,19 +368,14 @@ func (m *MessagesComponent) renderSystemMessage(msg DisplayMessage) string {
 
 	// System message header with timestamp and hacker styling
 	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] ℹ️ System ══╗", timestamp)
+	header := fmt.Sprintf("[S] System (%s)", timestamp)
 	content.WriteString(m.systemStyle.Render(header))
 	content.WriteString("\n")
 
 	// Message content with proper wrapping and border
 	messageText := m.wrapText(msg.Content, m.width-6)
-	lines := strings.Split(messageText, "\n")
-	for _, line := range lines {
-		content.WriteString(m.systemStyle.Render("║ "))
-		content.WriteString(line)
-		content.WriteString("\n")
-	}
-	content.WriteString(m.systemStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
+	messageStyle := lipgloss.NewStyle().PaddingLeft(2)
+	content.WriteString(messageStyle.Render(messageText))
 	content.WriteString("\n")
 
 	return content.String()
@@ -378,28 +387,23 @@ func (m *MessagesComponent) renderCommitMessage(msg DisplayMessage) string {
 
 	// Commit message header with timestamp and hacker styling
 	timestamp := msg.Timestamp.Format("15:04:05")
-	header := fmt.Sprintf("╔══ [%s] 📝 Git ══╗", timestamp)
+	header := fmt.Sprintf("[G] Git (%s)", timestamp)
 	content.WriteString(m.systemStyle.Render(header))
 	content.WriteString("\n")
 
 	// Render each commit with proper wrapping and border
+	commitStyle := lipgloss.NewStyle().PaddingLeft(2)
 	for _, commit := range msg.Commits {
-		content.WriteString(m.systemStyle.Render("║ "))
-		content.WriteString(m.userStyle.Render(commit.Hash[:7]))
-		content.WriteString(" ")
-		content.WriteString(commit.Subject)
+		commitLine := fmt.Sprintf("%s %s", m.userStyle.Render(commit.Hash[:7]), commit.Subject)
+		content.WriteString(commitStyle.Render(commitLine))
 		content.WriteString("\n")
 
 		if commit.PushedBranch != "" {
 			branchLine := fmt.Sprintf("Pushed to branch: %s", commit.PushedBranch)
-			content.WriteString(m.systemStyle.Render("║ "))
-			content.WriteString(branchLine)
+			content.WriteString(commitStyle.Render(branchLine))
 			content.WriteString("\n")
 		}
 	}
-
-	content.WriteString(m.systemStyle.Render("╚════════════════════════════════════════════════════════════════════════════════╝"))
-	content.WriteString("\n")
 
 	return content.String()
 }
@@ -458,14 +462,21 @@ func (m *MessagesComponent) HandleMessage(msg Message) tea.Cmd {
 			Content: typedMsg.content,
 		}
 		return m.HandleError(agentMsg)
-	case userInputMsg:
-		return m.HandleUserInput(typedMsg.input)
+	case userMessageDisplayMsg:
+		return m.HandleUserMessageDisplay(typedMsg.input, typedMsg.timestamp)
+	// Note: userInputMsg is NOT handled here to avoid duplicates - only userMessageDisplayMsg is handled
 	}
 	return nil
 }
 
 // HandleAgentMessage handles agent messages
 func (m *MessagesComponent) HandleAgentMessage(msg *loop.AgentMessage) tea.Cmd {
+	// Skip user messages from the agent iterator to avoid duplicates
+	// User messages are handled immediately via userMessageDisplayMsg
+	if msg.Type == loop.UserMessageType {
+		return nil
+	}
+
 	// Convert to DisplayMessage
 	displayMsg := DisplayMessage{
 		Type:      msg.Type,
@@ -476,7 +487,7 @@ func (m *MessagesComponent) HandleAgentMessage(msg *loop.AgentMessage) tea.Cmd {
 	}
 
 	m.AddMessage(displayMsg)
-	
+
 	// Send completion message to reset input thinking state
 	return func() tea.Msg {
 		return AgentResponseCompleteMsg{}
@@ -512,17 +523,21 @@ func (m *MessagesComponent) HandleError(msg *loop.AgentMessage) tea.Cmd {
 	return nil
 }
 
-// HandleUserInput handles user input messages
-func (m *MessagesComponent) HandleUserInput(input string) tea.Cmd {
-	// Convert to DisplayMessage
+// HandleUserMessageDisplay handles immediate user message display
+func (m *MessagesComponent) HandleUserMessageDisplay(input string, timestamp time.Time) tea.Cmd {
+	// Convert to DisplayMessage and add immediately
 	displayMsg := DisplayMessage{
 		Type:      loop.UserMessageType,
 		Content:   input,
-		Timestamp: time.Now(),
+		Timestamp: timestamp,
 		Sender:    "You",
 	}
 
 	m.AddMessage(displayMsg)
+	
+	// Auto-scroll to bottom to show the new message
+	m.viewport.GotoBottom()
+	
 	return nil
 }
 
@@ -579,27 +594,20 @@ func (m *MessagesComponent) renderBashToolInput(content *strings.Builder, input 
 			cmdHeaderStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#00FFFF")).
 				Bold(true)
-			content.WriteString(m.systemStyle.Render("║ "))
-			content.WriteString(cmdHeaderStyle.Render("💻 Command:"))
+			content.WriteString(cmdHeaderStyle.Render("  [CMD] Command:"))
 			content.WriteString("\n")
 
 			// Command with syntax highlighting style
 			cmdStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#39FF14")).
 				Background(lipgloss.Color("#1A1A1A")).
-				Padding(0, 1)
+				Padding(0, 1).
+				MarginLeft(4)
 			cmdLines := strings.Split(command, "\n")
 			for _, line := range cmdLines {
-				content.WriteString(m.systemStyle.Render("║ "))
 				content.WriteString(cmdStyle.Render("$ " + line))
 				content.WriteString("\n")
 			}
-
-			// Add separator
-			content.WriteString(m.systemStyle.Render("╠"))
-			content.WriteString(m.systemStyle.Render(strings.Repeat("═", 78)))
-			content.WriteString(m.systemStyle.Render("╣"))
-			content.WriteString("\n")
 		}
 	} else {
 		// Fallback to generic input rendering
@@ -618,8 +626,7 @@ func (m *MessagesComponent) renderPentestToolInput(content *strings.Builder, inp
 			actionHeaderStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#00FFFF")).
 				Bold(true)
-			content.WriteString(m.systemStyle.Render("║ "))
-			content.WriteString(actionHeaderStyle.Render("🎯 Action:"))
+			content.WriteString(actionHeaderStyle.Render("  [ACT] Action:"))
 			content.WriteString("\n")
 
 			// Action with highlighting
@@ -627,8 +634,8 @@ func (m *MessagesComponent) renderPentestToolInput(content *strings.Builder, inp
 				Foreground(lipgloss.Color("#FF6B35")).
 				Background(lipgloss.Color("#1A1A1A")).
 				Padding(0, 1).
-				Bold(true)
-			content.WriteString(m.systemStyle.Render("║ "))
+				Bold(true).
+				MarginLeft(4)
 			content.WriteString(actionStyle.Render(strings.ToUpper(action)))
 			content.WriteString("\n")
 
@@ -638,31 +645,24 @@ func (m *MessagesComponent) renderPentestToolInput(content *strings.Builder, inp
 				dataHeaderStyle := lipgloss.NewStyle().
 					Foreground(lipgloss.Color("#00FF41")).
 					Bold(true)
-				content.WriteString(m.systemStyle.Render("║ "))
-				content.WriteString(dataHeaderStyle.Render("📊 Data:"))
+				content.WriteString(dataHeaderStyle.Render("  [DAT] Data:"))
 				content.WriteString("\n")
 
 				// Format data as JSON with indentation
 				if dataBytes, err := json.MarshalIndent(data, "", "  "); err == nil {
 					dataStyle := lipgloss.NewStyle().
 						Foreground(lipgloss.Color("#C9D1D9")).
-						Background(lipgloss.Color("#0D1117"))
+						Background(lipgloss.Color("#0D1117")).
+						PaddingLeft(4)
 					dataLines := strings.Split(string(dataBytes), "\n")
 					for _, line := range dataLines {
 						if strings.TrimSpace(line) != "" {
-							content.WriteString(m.systemStyle.Render("║ "))
 							content.WriteString(dataStyle.Render(line))
 							content.WriteString("\n")
 						}
 					}
 				}
 			}
-
-			// Add separator
-			content.WriteString(m.systemStyle.Render("╠"))
-			content.WriteString(m.systemStyle.Render(strings.Repeat("═", 78)))
-			content.WriteString(m.systemStyle.Render("╣"))
-			content.WriteString("\n")
 		}
 	} else {
 		// Fallback to generic input rendering
@@ -675,23 +675,16 @@ func (m *MessagesComponent) renderGenericToolInput(content *strings.Builder, inp
 	inputHeaderStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#00FFFF")).
 		Bold(true)
-	content.WriteString(m.systemStyle.Render("║ "))
-	content.WriteString(inputHeaderStyle.Render("📥 Input:"))
+	content.WriteString(inputHeaderStyle.Render("  [IN] Input:"))
 	content.WriteString("\n")
 
 	inputText := m.wrapText(input, m.width-6)
 	lines := strings.Split(inputText, "\n")
+	inputStyle := lipgloss.NewStyle().PaddingLeft(4)
 	for _, line := range lines {
-		content.WriteString(m.systemStyle.Render("║ "))
-		content.WriteString(line)
+		content.WriteString(inputStyle.Render(line))
 		content.WriteString("\n")
 	}
-
-	// Add separator
-	content.WriteString(m.systemStyle.Render("╠"))
-	content.WriteString(m.systemStyle.Render(strings.Repeat("═", 78)))
-	content.WriteString(m.systemStyle.Render("╣"))
-	content.WriteString("\n")
 }
 
 // renderBashToolResult renders bash tool result with enhanced formatting
@@ -700,14 +693,14 @@ func (m *MessagesComponent) renderBashToolResult(content *strings.Builder, resul
 	outputHeaderStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#00FF41")).
 		Bold(true)
-	content.WriteString(m.systemStyle.Render("║ "))
-	content.WriteString(outputHeaderStyle.Render("📤 Output:"))
+	content.WriteString(outputHeaderStyle.Render("  [OUT] Output:"))
 	content.WriteString("\n")
 
 	// Style for command output
 	outputStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#C9D1D9")).
-		Background(lipgloss.Color("#0D1117"))
+		Background(lipgloss.Color("#0D1117")).
+		PaddingLeft(4)
 
 	// Process output line by line for better formatting
 	lines := strings.Split(result, "\n")
@@ -716,12 +709,10 @@ func (m *MessagesComponent) renderBashToolResult(content *strings.Builder, resul
 		if len(line) > m.width-6 {
 			wrappedLines := m.wrapText(line, m.width-6)
 			for _, wrappedLine := range strings.Split(wrappedLines, "\n") {
-				content.WriteString(m.systemStyle.Render("║ "))
 				content.WriteString(outputStyle.Render(wrappedLine))
 				content.WriteString("\n")
 			}
 		} else {
-			content.WriteString(m.systemStyle.Render("║ "))
 			content.WriteString(outputStyle.Render(line))
 			content.WriteString("\n")
 		}
@@ -734,8 +725,7 @@ func (m *MessagesComponent) renderPentestToolResult(content *strings.Builder, re
 	resultHeaderStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#00FF41")).
 		Bold(true)
-	content.WriteString(m.systemStyle.Render("║ "))
-	content.WriteString(resultHeaderStyle.Render("✅ Result:"))
+	content.WriteString(resultHeaderStyle.Render("  [OK] Result:"))
 	content.WriteString("\n")
 
 	// Try to parse result as JSON for better formatting
@@ -745,12 +735,12 @@ func (m *MessagesComponent) renderPentestToolResult(content *strings.Builder, re
 		if formattedBytes, err := json.MarshalIndent(resultData, "", "  "); err == nil {
 			resultStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#00FF41")).
-				Background(lipgloss.Color("#0D1117"))
+				Background(lipgloss.Color("#0D1117")).
+				PaddingLeft(4)
 
 			lines := strings.Split(string(formattedBytes), "\n")
 			for _, line := range lines {
 				if strings.TrimSpace(line) != "" {
-					content.WriteString(m.systemStyle.Render("║ "))
 					content.WriteString(resultStyle.Render(line))
 					content.WriteString("\n")
 				}
@@ -769,7 +759,8 @@ func (m *MessagesComponent) renderPentestToolResult(content *strings.Builder, re
 func (m *MessagesComponent) renderRawResult(content *strings.Builder, result string) {
 	resultStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#C9D1D9")).
-		Background(lipgloss.Color("#0D1117"))
+		Background(lipgloss.Color("#0D1117")).
+		PaddingLeft(4)
 
 	lines := strings.Split(result, "\n")
 	for _, line := range lines {
@@ -777,12 +768,10 @@ func (m *MessagesComponent) renderRawResult(content *strings.Builder, result str
 		if len(line) > m.width-6 {
 			wrappedLines := m.wrapText(line, m.width-6)
 			for _, wrappedLine := range strings.Split(wrappedLines, "\n") {
-				content.WriteString(m.systemStyle.Render("║ "))
 				content.WriteString(resultStyle.Render(wrappedLine))
 				content.WriteString("\n")
 			}
 		} else {
-			content.WriteString(m.systemStyle.Render("║ "))
 			content.WriteString(resultStyle.Render(line))
 			content.WriteString("\n")
 		}
@@ -794,15 +783,14 @@ func (m *MessagesComponent) renderGenericToolResult(content *strings.Builder, re
 	resultHeaderStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#00FF41")).
 		Bold(true)
-	content.WriteString(m.systemStyle.Render("║ "))
-	content.WriteString(resultHeaderStyle.Render("📤 Result:"))
+	content.WriteString(resultHeaderStyle.Render("  [RES] Result:"))
 	content.WriteString("\n")
 
 	resultText := m.wrapText(result, m.width-6)
 	lines := strings.Split(resultText, "\n")
+	resultStyle := lipgloss.NewStyle().PaddingLeft(4)
 	for _, line := range lines {
-		content.WriteString(m.systemStyle.Render("║ "))
-		content.WriteString(line)
+		content.WriteString(resultStyle.Render(line))
 		content.WriteString("\n")
 	}
 }
@@ -812,15 +800,14 @@ func (m *MessagesComponent) renderToolError(content *strings.Builder, errorMsg s
 	errorHeaderStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FF0040")).
 		Bold(true)
-	content.WriteString(m.errorStyle.Render("║ "))
-	content.WriteString(errorHeaderStyle.Render("❌ Error:"))
+	content.WriteString(errorHeaderStyle.Render("  [ERR] Error:"))
 	content.WriteString("\n")
 
 	errorText := m.wrapText(errorMsg, m.width-6)
 	lines := strings.Split(errorText, "\n")
+	errorStyle := lipgloss.NewStyle().PaddingLeft(4)
 	for _, line := range lines {
-		content.WriteString(m.errorStyle.Render("║ "))
-		content.WriteString(line)
+		content.WriteString(errorStyle.Render(line))
 		content.WriteString("\n")
 	}
 }

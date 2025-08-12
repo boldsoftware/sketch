@@ -214,11 +214,6 @@ func (s *Service) buildGeminiRequest(req *llm.Request) (*gemini.Request, error) 
 				// Save the ID for this tool name for future correlation
 				toolNameToID[c.ToolName] = c.ID
 
-				slog.DebugContext(context.Background(), "gemini_preparing_tool_use",
-					"tool_name", c.ToolName,
-					"tool_id", c.ID,
-					"input", string(c.ToolInput))
-
 				content.Parts = append(content.Parts, gemini.Part{
 					FunctionCall: &gemini.FunctionCall{
 						Name: c.ToolName,
@@ -272,11 +267,6 @@ func (s *Service) buildGeminiRequest(req *llm.Request) (*gemini.Request, error) 
 					}
 				}
 
-				slog.DebugContext(context.Background(), "gemini_preparing_tool_result",
-					"tool_use_id", c.ToolUseID,
-					"mapped_func_name", funcName,
-					"result_count", len(c.ToolResult))
-
 				content.Parts = append(content.Parts, gemini.Part{
 					FunctionResponse: &gemini.FunctionResponse{
 						Name:     funcName,
@@ -316,13 +306,8 @@ func convertGeminiResponseToContent(res *gemini.Response) []llm.Content {
 	var contents []llm.Content
 
 	// Process each part in the first candidate's content
-	for i, part := range res.Candidates[0].Content.Parts {
+	for _, part := range res.Candidates[0].Content.Parts {
 		// Log the part type for debugging
-		slog.DebugContext(context.Background(), "processing_gemini_part",
-			"index", i,
-			"has_text", part.Text != "",
-			"has_function_call", part.FunctionCall != nil,
-			"has_function_response", part.FunctionResponse != nil)
 
 		if part.Text != "" {
 			// Simple text response
@@ -335,11 +320,7 @@ func convertGeminiResponseToContent(res *gemini.Response) []llm.Content {
 			args, err := json.Marshal(part.FunctionCall.Args)
 			if err != nil {
 				// If we can't marshal, use empty args
-				slog.DebugContext(context.Background(), "gemini_failed_to_markshal_args",
-					"tool_name", part.FunctionCall.Name,
-					"args", string(args),
-					"err", err.Error(),
-				)
+
 				args = []byte("{}")
 			}
 
@@ -354,22 +335,15 @@ func convertGeminiResponseToContent(res *gemini.Response) []llm.Content {
 				ToolInput: json.RawMessage(args),
 			})
 
-			slog.DebugContext(context.Background(), "gemini_tool_call",
-				"tool_id", toolID,
-				"tool_name", part.FunctionCall.Name,
-				"args", string(args))
 		} else if part.FunctionResponse != nil {
 			// We shouldn't normally get function responses from the model, but just in case
-			respData, _ := json.Marshal(part.FunctionResponse.Response)
-			slog.DebugContext(context.Background(), "unexpected_function_response",
-				"name", part.FunctionResponse.Name,
-				"response", string(respData))
+
 		}
 	}
 
 	// If no content was added, add an empty text content
 	if len(contents) == 0 {
-		slog.DebugContext(context.Background(), "empty_gemini_response", "adding_empty_text", true)
+
 		contents = append(contents, llm.Content{
 			Type: llm.ContentTypeText,
 			Text: "",
@@ -386,9 +360,7 @@ func ensureToolIDs(contents []llm.Content) {
 		if content.Type == llm.ContentTypeToolUse && content.ID == "" {
 			// Generate a stable ID using the tool name and timestamp
 			contents[i].ID = fmt.Sprintf("gemini_tool_%s_%d", content.ToolName, time.Now().UnixNano())
-			slog.DebugContext(context.Background(), "assigned_missing_tool_id",
-				"tool_name", content.ToolName,
-				"new_id", contents[i].ID)
+
 		}
 	}
 }
@@ -484,35 +456,23 @@ func (s *Service) Do(ctx context.Context, ir *llm.Request) (*llm.Response, error
 		for _, tool := range ir.Tools {
 			toolNames = append(toolNames, tool.Name)
 		}
-		slog.DebugContext(ctx, "gemini_tools", "tools", toolNames)
+
 	}
 
 	// Log details about the messages being sent
-	for i, msg := range ir.Messages {
+	for _, msg := range ir.Messages {
 		contentTypes := make([]string, len(msg.Content))
 		for j, c := range msg.Content {
 			contentTypes[j] = c.Type.String()
 
 			// Log tool-related content with more details
 			if c.Type == llm.ContentTypeToolUse {
-				slog.DebugContext(ctx, "gemini_tool_use",
-					"message_idx", i,
-					"content_idx", j,
-					"tool_name", c.ToolName,
-					"tool_input", string(c.ToolInput))
+
 			} else if c.Type == llm.ContentTypeToolResult {
-				slog.DebugContext(ctx, "gemini_tool_result",
-					"message_idx", i,
-					"content_idx", j,
-					"tool_use_id", c.ToolUseID,
-					"tool_error", c.ToolError,
-					"result_count", len(c.ToolResult))
+
 			}
 		}
-		slog.DebugContext(ctx, "gemini_message",
-			"idx", i,
-			"role", msg.Role.String(),
-			"content_types", contentTypes)
+
 	}
 	// Build the Gemini request
 	gemReq, err := s.buildGeminiRequest(ir)
@@ -521,9 +481,6 @@ func (s *Service) Do(ctx context.Context, ir *llm.Request) (*llm.Response, error
 	}
 
 	// Log the structured Gemini request for debugging
-	if reqJSON, err := json.MarshalIndent(gemReq, "", "  "); err == nil {
-		slog.DebugContext(ctx, "gemini_request_json", "request", string(reqJSON))
-	}
 
 	// Create a Gemini model instance
 	model := gemini.Model{
@@ -548,9 +505,7 @@ func (s *Service) Do(ctx context.Context, ir *llm.Request) (*llm.Response, error
 		if gemApiErr == nil {
 			// Successful response
 			// Log the structured Gemini response
-			if resJSON, err := json.MarshalIndent(gemRes, "", "  "); err == nil {
-				slog.DebugContext(ctx, "gemini_response_json", "response", string(resJSON))
-			}
+
 			break
 		}
 
@@ -584,9 +539,7 @@ func (s *Service) Do(ctx context.Context, ir *llm.Request) (*llm.Response, error
 	for _, part := range content {
 		if part.Type == llm.ContentTypeToolUse {
 			stopReason = llm.StopReasonToolUse
-			slog.DebugContext(ctx, "gemini_tool_use_detected",
-				"setting_stop_reason", "llm.StopReasonToolUse",
-				"tool_name", part.ToolName)
+
 			break
 		}
 	}

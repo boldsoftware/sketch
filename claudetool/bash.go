@@ -242,10 +242,12 @@ func executeBash(ctx context.Context, req bashInput, timeout time.Duration) (str
 			bashkit.SetupPTYCommand(cmd, pty)
 
 			// Set up a goroutine to copy output from the PTY master to our buffer
+			// with a limit to prevent memory exhaustion
 			outputDone := make(chan struct{})
 			go func() {
 				defer close(outputDone)
-				bashkit.CopyOutput(&output, pty)
+				limitedReader := &io.LimitedReader{R: pty.Master, N: maxBashOutputLength}
+				io.Copy(&output, limitedReader)
 			}()
 
 			defer func() {
@@ -268,9 +270,20 @@ func executeBash(ctx context.Context, req bashInput, timeout time.Duration) (str
 
 	// If PTY wasn't requested or failed to initialize, use standard pipes
 	if pty == nil {
-		cmd.Stdin = nil
-		cmd.Stdout = &output
-		cmd.Stderr = &output
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return "", fmt.Errorf("failed to get stdout pipe: %w", err)
+		}
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			return "", fmt.Errorf("failed to get stderr pipe: %w", err)
+		}
+		go func() {
+			// Limit the total output read from both stdout and stderr
+			combinedOutput := io.MultiReader(stdout, stderr)
+			limitedReader := &io.LimitedReader{R: combinedOutput, N: maxBashOutputLength}
+			io.Copy(&output, limitedReader)
+		}()
 	}
 
 	if err := cmd.Start(); err != nil {

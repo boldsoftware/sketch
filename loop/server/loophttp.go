@@ -1164,10 +1164,10 @@ func (s *Server) handleSSEStream(w http.ResponseWriter, r *http.Request) {
 	defer heartbeatTicker.Stop()
 
 	// Create a channel for messages
-	messageChan := make(chan *loop.AgentMessage, 10)
+	messageChan := make(chan *loop.AgentMessage, 1000)
 
 	// Create a channel for state transitions
-	stateChan := make(chan *loop.StateTransition, 10)
+	stateChan := make(chan *loop.StateTransition, 1000)
 
 	// Start a goroutine to read messages without blocking the heartbeat
 	go func() {
