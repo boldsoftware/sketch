@@ -9,6 +9,8 @@ import (
 	"os/exec"
 
 	"sketch.dev/llm"
+	"strings"
+	"time"
 )
 
 // NmapRun represents the structure of the Nmap XML output.
@@ -99,10 +101,18 @@ func (t *NmapTool) Run(ctx context.Context, input json.RawMessage) ([]llm.Conten
 
 	slog.InfoContext(ctx, "running nmap tool", "args", args.Args)
 
-	// Add -oX - to get XML output to stdout
+	// Add non-interactive flags and XML output
 	argsWithXML := append(args.Args, "-oX", "-")
+	
+	// Ensure non-interactive execution
+	argsWithXML = t.ensureNonInteractive(argsWithXML)
 
-	cmd := exec.CommandContext(ctx, "nmap", argsWithXML...)
+	// Set appropriate timeout based on scan complexity
+	timeout := t.calculateTimeout(argsWithXML)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctxWithTimeout, "nmap", argsWithXML...)
 
 	out, err := cmd.Output()
 	var result string
@@ -124,4 +134,81 @@ func (t *NmapTool) Run(ctx context.Context, input json.RawMessage) ([]llm.Conten
 	}
 
 	return []llm.Content{{Text: result}}, nil
+}
+
+// ensureNonInteractive adds flags to ensure nmap runs non-interactively
+func (t *NmapTool) ensureNonInteractive(args []string) []string {
+	// Check if non-interactive flags are already present
+	hasNoDNS := false
+	
+	for _, arg := range args {
+		switch arg {
+		case "-n", "--no-dns":
+			hasNoDNS = true
+		}
+	}
+	
+	// Add non-interactive flags if not present
+	if !hasNoDNS {
+		// Disable DNS resolution to avoid delays and prompts
+		args = append(args, "-n")
+	}
+	
+	// Add verbose output for progress monitoring
+	hasVerbose := false
+	for _, arg := range args {
+		if arg == "-v" || arg == "-vv" || arg == "-vvv" || arg == "--verbose" {
+			hasVerbose = true
+			break
+		}
+	}
+	if !hasVerbose {
+		args = append(args, "-v")
+	}
+	
+	return args
+}
+
+// calculateTimeout determines appropriate timeout based on scan complexity
+func (t *NmapTool) calculateTimeout(args []string) time.Duration {
+	baseTimeout := 5 * time.Minute // Default timeout
+	
+	// Analyze arguments to estimate scan complexity
+	for i, arg := range args {
+		switch {
+		case arg == "-sS" || arg == "-sT": // TCP scans
+			baseTimeout = 10 * time.Minute
+		case arg == "-sU": // UDP scan (slower)
+			baseTimeout = 20 * time.Minute
+		case arg == "-A": // Aggressive scan
+			baseTimeout = 15 * time.Minute
+		case arg == "-p" && i+1 < len(args): // Port specification
+			// Check if scanning many ports
+			portSpec := args[i+1]
+			if strings.Contains(portSpec, "-") || strings.Contains(portSpec, ",") {
+				baseTimeout = 15 * time.Minute
+			}
+		case strings.HasPrefix(arg, "--script"): // Script scanning
+			baseTimeout = 20 * time.Minute
+		case arg == "-O": // OS detection
+			baseTimeout = 10 * time.Minute
+		}
+	}
+	
+	// Check for timing template
+	for i, arg := range args {
+		if arg == "-T" && i+1 < len(args) {
+			timing := args[i+1]
+			switch timing {
+			case "0", "1": // Paranoid/Sneaky - very slow
+				baseTimeout = 60 * time.Minute
+			case "2": // Polite - slower
+				baseTimeout = 30 * time.Minute
+			case "4", "5": // Aggressive/Insane - faster
+				baseTimeout = 3 * time.Minute
+			}
+		}
+	}
+	
+	return baseTimeout
 }

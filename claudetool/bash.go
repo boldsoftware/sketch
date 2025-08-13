@@ -177,6 +177,9 @@ func (b *BashTool) Run(ctx context.Context, m json.RawMessage) ([]llm.Content, e
 		}
 	}
 
+	// Enhance command for pentesting tools to ensure non-interactive execution
+	req.Command = b.enhancePentestingCommand(req.Command)
+
 	timeout := req.timeout(b.Timeouts)
 
 	// If Background is set to true, use executeBackgroundBash
@@ -500,6 +503,137 @@ func (b *BashTool) checkAndInstallMissingTools(ctx context.Context, command stri
 		doNotAttemptToolInstall[cmd] = true // either it's installed or it's not--either way, we're done with it
 	}
 	return nil
+}
+
+// enhancePentestingCommand modifies commands for common pentesting tools to ensure non-interactive execution
+func (b *BashTool) enhancePentestingCommand(command string) string {
+	// Common pentesting tools and their non-interactive flags
+	pentestingTools := map[string][]string{
+		"nmap": {"-n", "-v"}, // No DNS resolution, verbose output
+		"nikto": {"-nointeractive"},
+		"sqlmap": {"--batch", "--no-cast"}, // Batch mode, no type casting warnings
+		"hydra": {"-f"}, // Exit after first found login/password pair
+		"dirb": {"-S"}, // Silent mode (less interactive)
+		"gobuster": {"-q"}, // Quiet mode
+		"wpscan": {"--no-banner", "--no-update"}, // No banner, no update check
+		"enum4linux": {"-a"}, // All enumeration
+		"smbclient": {"-N"}, // No password prompt
+		"rpcclient": {"-N"}, // No password prompt
+		"crackmapexec": {"--no-bruteforce"}, // Disable brute force
+		"masscan": {"--rate", "1000"}, // Set reasonable rate limit
+		"zap-baseline": {"-I"}, // Non-interactive mode
+		"burpsuite": {"--disable-extensions"}, // Disable extensions that might prompt
+	}
+
+	// Parse the command to identify the tool
+	fields := strings.Fields(command)
+	if len(fields) == 0 {
+		return command
+	}
+
+	// Extract the base command (handle cases like "sudo nmap" or "./nmap")
+	baseCmd := fields[0]
+	if baseCmd == "sudo" && len(fields) > 1 {
+		baseCmd = fields[1]
+	}
+	// Remove path prefixes
+	if strings.Contains(baseCmd, "/") {
+		parts := strings.Split(baseCmd, "/")
+		baseCmd = parts[len(parts)-1]
+	}
+
+	// Check if this is a known pentesting tool
+	if flags, exists := pentestingTools[baseCmd]; exists {
+		// Check if non-interactive flags are already present
+		for _, flag := range flags {
+			if !strings.Contains(command, flag) {
+				// Add the flag after the command but before any targets
+				// Find a good insertion point (after options but before targets)
+				command = b.insertFlag(command, flag, baseCmd)
+			}
+		}
+		
+		// Add timeout handling for long-running scans
+		if baseCmd == "nmap" || baseCmd == "masscan" {
+			// Add host timeout to prevent hanging on unresponsive hosts
+			if !strings.Contains(command, "--host-timeout") {
+				command = b.insertFlag(command, "--host-timeout", baseCmd)
+				command = b.insertFlag(command, "300s", "--host-timeout")
+			}
+		}
+	}
+
+	// Add general non-interactive environment variables
+	envVars := []string{
+		"DEBIAN_FRONTEND=noninteractive",
+		"NEEDRESTART_MODE=a", // Automatic restart mode
+		"UCF_FORCE_CONFFNEW=1", // Use new config files
+	}
+
+	for _, envVar := range envVars {
+		if !strings.Contains(command, envVar) {
+			command = envVar + " " + command
+		}
+	}
+
+	return command
+}
+
+// insertFlag inserts a flag into a command at an appropriate position
+func (b *BashTool) insertFlag(command, flag, afterCmd string) string {
+	fields := strings.Fields(command)
+	if len(fields) == 0 {
+		return command + " " + flag
+	}
+
+	// Find the position after the command
+	insertPos := len(fields) // Default to end
+	for i, field := range fields {
+		if strings.Contains(field, afterCmd) {
+			// Insert after this command, but before any IP addresses or domains
+			for j := i + 1; j < len(fields); j++ {
+				// Check if this looks like a target (IP, domain, or file)
+				if b.looksLikeTarget(fields[j]) {
+					insertPos = j
+					break
+				}
+			}
+			break
+		}
+	}
+
+	// Insert the flag at the determined position
+	result := make([]string, 0, len(fields)+1)
+	result = append(result, fields[:insertPos]...)
+	result = append(result, flag)
+	result = append(result, fields[insertPos:]...)
+
+	return strings.Join(result, " ")
+}
+
+// looksLikeTarget determines if a string looks like a scan target
+func (b *BashTool) looksLikeTarget(s string) bool {
+	// Skip flags
+	if strings.HasPrefix(s, "-") {
+		return false
+	}
+
+	// Check for IP address patterns
+	if strings.Count(s, ".") == 3 || strings.Contains(s, ":") {
+		return true
+	}
+
+	// Check for domain patterns
+	if strings.Contains(s, ".") && !strings.Contains(s, "/") {
+		return true
+	}
+
+	// Check for CIDR notation
+	if strings.Contains(s, "/") && (strings.Count(s, ".") == 3 || strings.Contains(s, ":")) {
+		return true
+	}
+
+	return false
 }
 
 // Command safety check cache to avoid repeated LLM calls

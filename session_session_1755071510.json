@@ -1,0 +1,19 @@
+{
+  "id": "session_1755071510",
+  "target": {
+    "id": "target_1755071507",
+    "name": "ujaotech.com",
+    "ip_address": "",
+    "scope": [
+      "Web Application and Subdomains"
+    ],
+    "created_at": "2025-08-13T10:51:47.800477389+03:00",
+    "updated_at": "2025-08-13T10:51:47.800477389+03:00"
+  },
+  "phase": "reconnaissance",
+  "status": "active",
+  "start_time": "2025-08-13T10:51:50.565404528+03:00",
+  "findings": [],
+  "notes": [],
+  "commands": []
+}

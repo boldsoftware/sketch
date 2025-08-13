@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"sketch.dev/browser"
+	// browser package removed - no longer supporting web UI
 	"sketch.dev/embedded"
 	"sketch.dev/loop/server"
 	"sketch.dev/skribe"
@@ -58,8 +58,7 @@ type ContainerConfig struct {
 	// GitEmail is the email to use for git operations
 	GitEmail string
 
-	// OpenBrowser determines whether to open a browser automatically
-	OpenBrowser bool
+	// OpenBrowser removed - no longer supporting web UI
 
 	// NoCleanup prevents container cleanup when set to true
 	NoCleanup bool
@@ -425,9 +424,7 @@ func LaunchContainer(ctx context.Context, config ContainerConfig) error {
 		if config.SkabandAddr != "" {
 			ps1URL = fmt.Sprintf("%s/s/%s", config.SkabandAddr, config.SessionID)
 		}
-		if config.OpenBrowser {
-			browser.Open(ps1URL)
-		}
+		// Browser opening removed - no longer supporting web UI
 		gitSrv.ps1URL.Store(&ps1URL)
 	}()
 
@@ -510,11 +507,7 @@ func newGitServer(gitRoot string) (*gitServer, error) {
 
 	browserC := make(chan bool, 1) // channel of browser open requests
 
-	go func() {
-		for range browserC {
-			browser.Open(*ret.ps1URL.Load())
-		}
-	}()
+	// Browser opening goroutine removed - no longer supporting web UI
 
 	srv := http.Server{Handler: &gitHTTP{gitRepoRoot: gitRoot, pass: []byte(ret.pass), browserC: browserC}}
 	ret.srv = &srv

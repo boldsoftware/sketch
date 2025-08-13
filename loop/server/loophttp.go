@@ -28,11 +28,11 @@ import (
 
 	"github.com/creack/pty"
 	"sketch.dev/claudetool/browse"
-	"sketch.dev/embedded"
+	// embedded package removed - no longer serving web UI assets
 	"sketch.dev/git_tools"
 	"sketch.dev/llm/conversation"
 	"sketch.dev/loop"
-	"sketch.dev/loop/server/gzhandler"
+	// gzhandler removed - no longer serving static files
 )
 
 // terminalSession represents a terminal session with its PTY and the event channel
@@ -227,7 +227,8 @@ func New(agent loop.CodingAgent, logFile *os.File) (*Server, error) {
 		maxTerminalSessions: 5,   // Limit concurrent terminal sessions
 	}
 
-	s.mux.HandleFunc("/stream", s.handleSSEStream)
+	// SSE streaming removed - no longer supporting web UI
+	// s.mux.HandleFunc("/stream", s.handleSSEStream)
 
 	// Git tool endpoints
 	s.mux.HandleFunc("/git/rawdiff", s.handleGitRawDiff)
@@ -495,64 +496,18 @@ func New(agent loop.CodingAgent, logFile *os.File) (*Server, error) {
 		}
 	})
 
-	s.mux.Handle("/static/", http.StripPrefix("/static/", gzhandler.New(embedded.WebUIFS())))
+	// Static file serving removed - no longer supporting web UI
+	// s.mux.Handle("/static/", http.StripPrefix("/static/", gzhandler.New(embedded.WebUIFS())))
 
-	// Terminal WebSocket handler
-	// Terminal endpoints - predefined terminals 1-9
-	// TODO: The UI doesn't actually know how to use terminals 2-9!
-	s.mux.HandleFunc("/terminal/events/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		pathParts := strings.Split(r.URL.Path, "/")
-		if len(pathParts) < 4 {
-			http.Error(w, "Invalid terminal ID", http.StatusBadRequest)
-			return
-		}
+	// Terminal WebSocket endpoints removed - no longer supporting web UI
+	// These were causing memory leaks through persistent connections
 
-		sessionID := pathParts[3]
-		// Validate that the terminal ID is between 1-9
-		if len(sessionID) != 1 || sessionID[0] < '1' || sessionID[0] > '9' {
-			http.Error(w, "Terminal ID must be between 1 and 9", http.StatusBadRequest)
-			return
-		}
-
-		s.handleTerminalEvents(w, r, sessionID)
-	})
-
-	s.mux.HandleFunc("/terminal/input/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		pathParts := strings.Split(r.URL.Path, "/")
-		if len(pathParts) < 4 {
-			http.Error(w, "Invalid terminal ID", http.StatusBadRequest)
-			return
-		}
-		sessionID := pathParts[3]
-		s.handleTerminalInput(w, r, sessionID)
-	})
-
-	// Handler for interface selection via URL parameters (?m for mobile)
+	// Web UI root handler removed - no longer supporting web UI
 	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		webuiFS := embedded.WebUIFS()
-		appShell := "sketch-app-shell.html"
-		if r.URL.Query().Has("m") {
-			appShell = "mobile-app-shell.html"
-		}
-
-		// Check if filesystem is nil to avoid panic
-		if webuiFS == nil {
-			// Fallback to serving a simple error page
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("<html><body><h1>Error: WebUI assets not available</h1><p>The WebUI assets are not available in this build. Please use the CLI interface.</p></body></html>"))
-			return
-		}
-
-		http.ServeFileFS(w, r, webuiFS, appShell)
+		// Return a simple message indicating web UI is disabled
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte("Web UI has been disabled. Please use the terminal interface."))
 	})
 
 	// Handler for /commit-description - returns the description of a git commit

@@ -6,8 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
-	"io/fs"
+	// io and io/fs removed - no longer needed after removing webui
 	"log/slog"
 	"net"
 	"net/http"
@@ -24,7 +23,6 @@ import (
 	"github.com/joho/godotenv"
 
 	"golang.org/x/term"
-	"sketch.dev/browser"
 	"sketch.dev/claudetool"
 	"sketch.dev/dockerimg"
 	"sketch.dev/experiment"
@@ -38,10 +36,10 @@ import (
 	"sketch.dev/mcp"
 	"sketch.dev/skabandclient"
 	"sketch.dev/skribe"
-	"sketch.dev/termui"
+	// termui removed - only using bubble tea UI now
 	"sketch.dev/termui/bubbletea"
 	"sketch.dev/update"
-	"sketch.dev/webui"
+	// webui package removed - no longer supporting web UI
 )
 
 // Version information set by ldflags at build time
@@ -63,6 +61,9 @@ func main() {
 // execution path based on whether we're running in a container or not.
 func run() error {
 	flagArgs := parseCLIFlags()
+
+	// Display ASCII art banner
+	displayBanner()
 
 	// If not built with make, embedded assets will be missing.
 	if builtBy == "" {
@@ -110,7 +111,7 @@ func run() error {
 	}
 
 	if flagArgs.dumpDist != "" {
-		return dumpDistFilesystem(flagArgs.dumpDist)
+		return fmt.Errorf("dump-dist functionality has been removed along with web UI support")
 	}
 
 	// Claude and Gemini are supported in container mode
@@ -217,10 +218,10 @@ func (f *StringSliceFlag) Get() any {
 }
 
 type CLIFlags struct {
-	addr         string
-	skabandAddr  string
-	unsafe       bool
-	openBrowser  bool
+	addr        string
+	skabandAddr string
+	unsafe      bool
+	// openBrowser removed - no longer supporting web UI
 	httprrFile   string
 	maxDollars   float64
 	oneShot      bool
@@ -238,7 +239,7 @@ type CLIFlags struct {
 	linkToGitHub bool
 	ignoreSig    bool
 	doUpdate     bool
-	useBubbleTea bool
+	// useBubbleTea removed - always use bubble tea UI
 
 	gitUsername         string
 	gitEmail            string
@@ -288,7 +289,7 @@ func parseCLIFlags() CLIFlags {
 	userFlags.StringVar(&flags.skabandAddr, "skaband-addr", "", "URL of the skaband server; set to empty to disable sketch.dev integration (default: disabled)")
 	userFlags.StringVar(&flags.skabandAddr, "ska-band-addr", "", "URL of the skaband server; set to empty to disable sketch.dev integration (alias for -skaband-addr)")
 	userFlags.BoolVar(&flags.unsafe, "unsafe", false, "run without a docker container")
-	userFlags.BoolVar(&flags.openBrowser, "open", true, "open sketch URL in system browser; on by default except if -one-shot is used or a ssh connection is detected")
+	// openBrowser flag removed - no longer supporting web UI
 	userFlags.Float64Var(&flags.maxDollars, "max-dollars", 10.0, "maximum dollars the agent should spend per turn, 0 to disable limit")
 	userFlags.BoolVar(&flags.oneShot, "one-shot", false, "exit after the first turn without termui")
 	userFlags.StringVar(&flags.prompt, "prompt", "", "prompt to send to sketch")
@@ -309,7 +310,7 @@ func parseCLIFlags() CLIFlags {
 	userFlags.StringVar(&flags.dockerArgs, "docker-args", "", "additional arguments to pass to the docker create command (e.g., --memory=2g --cpus=2)")
 	userFlags.Var(&flags.mounts, "mount", "volume to mount in the container in format /path/on/host:/path/in/container (can be repeated)")
 	userFlags.BoolVar(&flags.termUI, "termui", true, "enable terminal UI")
-	userFlags.BoolVar(&flags.useBubbleTea, "bubbletea", false, "use the new Bubble Tea terminal UI")
+	// useBubbleTea flag removed - always use bubble tea UI
 	userFlags.StringVar(&flags.branchPrefix, "branch-prefix", "sketch/", "prefix for git branches created by sketch")
 	userFlags.BoolVar(&flags.ignoreSig, "ignoresig", false, "ignore typical termination signals (SIGINT, SIGTERM)")
 	userFlags.Var(&flags.mcpServers, "mcp", "MCP server configuration as JSON (can be repeated). Schema: {\"name\": \"server-name\", \"type\": \"stdio|http|sse\", \"url\": \"...\", \"command\": \"...\", \"args\": [...], \"env\": {...}, \"headers\": {...}}")
@@ -384,19 +385,7 @@ func parseCLIFlags() CLIFlags {
 	// Parse all arguments with the combined flagset
 	allFlags.Parse(os.Args[1:])
 
-	// -open's default value is not a simple true/false; it depends on other flags and conditions.
-	// Distinguish between -open default value vs explicitly set.
-	openExplicit := false
-	allFlags.Visit(func(f *flag.Flag) {
-		if f.Name == "open" {
-			openExplicit = true
-		}
-	})
-	if !openExplicit {
-		// Not explicitly set.
-		// Calculate the right default value: true except with one-shot mode or if we're running in a ssh session.
-		flags.openBrowser = !flags.oneShot && os.Getenv("SSH_CONNECTION") == ""
-	}
+	// openBrowser logic removed - no longer supporting web UI
 
 	// expand ~ in mounts
 	for i, mount := range flags.mounts {
@@ -462,16 +451,16 @@ func runInHostMode(ctx context.Context, flags CLIFlags) error {
 
 	// Configure and launch the container
 	config := dockerimg.ContainerConfig{
-		SessionID:         flags.sessionID,
-		LocalAddr:         flags.addr,
-		SkabandAddr:       flags.skabandAddr,
-		Model:             flags.modelName,
-		ModelURL:          modelURL,
-		ModelAPIKey:       apiKey,
-		Path:              cwd,
-		GitUsername:       flags.gitUsername,
-		GitEmail:          flags.gitEmail,
-		OpenBrowser:       flags.openBrowser,
+		SessionID:   flags.sessionID,
+		LocalAddr:   flags.addr,
+		SkabandAddr: flags.skabandAddr,
+		Model:       flags.modelName,
+		ModelURL:    modelURL,
+		ModelAPIKey: apiKey,
+		Path:        cwd,
+		GitUsername: flags.gitUsername,
+		GitEmail:    flags.gitEmail,
+		// OpenBrowser removed - no longer supporting web UI
 		NoCleanup:         flags.noCleanup,
 		ContainerLogDest:  flags.containerLogDest,
 		SketchBinaryLinux: flags.sketchBinaryLinux,
@@ -735,10 +724,7 @@ func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pub
 		agent.UserMessage(ctx, flags.prompt)
 	}
 
-	// Open the web UI URL in the system browser if requested
-	if flags.openBrowser {
-		browser.Open(ps1URL)
-	}
+	// Browser opening removed - no longer supporting web UI
 
 	// Check if terminal UI should be enabled
 	// Disable termui if the flag is explicitly set to false or if we detect no PTY is available
@@ -746,19 +732,13 @@ func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pub
 		flags.termUI = false
 	}
 
-	// Create a variable for terminal UI
-	var s *termui.TermUI
+	// Always use Bubble Tea terminal UI (classic UI removed)
 	var bt *bubbletea.BubbleTeaUI
 
-	// Create the terminal UI instance based on flags
+	// Create the Bubble Tea terminal UI instance
 	if flags.termUI {
-		if flags.useBubbleTea {
-			// Use the new Bubble Tea terminal UI
-			bt = bubbletea.New(agent, ps1URL)
-		} else {
-			// Use the classic terminal UI
-			s = termui.New(agent, ps1URL)
-		}
+		// Always use the Bubble Tea terminal UI
+		bt = bubbletea.New(agent, ps1URL)
 	}
 
 	// Start skaband connection loop if needed
@@ -766,12 +746,12 @@ func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pub
 		connectFn := func(connected bool) {
 			if flags.verbose {
 				if connected {
-					if s != nil {
-						s.AppendSystemMessage("skaband connected")
+					if bt != nil {
+						bt.AppendSystemMessage("skaband connected")
 					}
 				} else {
-					if s != nil {
-						s.AppendSystemMessage("skaband disconnected")
+					if bt != nil {
+						bt.AppendSystemMessage("skaband disconnected")
 					}
 				}
 			}
@@ -783,7 +763,7 @@ func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pub
 	}
 
 	// Handle one-shot mode or mode without terminal UI
-	if flags.oneShot || (s == nil && bt == nil) {
+	if flags.oneShot || bt == nil {
 		it := agent.NewIterator(ctx, 0)
 		for {
 			m := it.Next()
@@ -807,8 +787,8 @@ func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pub
 		}
 	}
 
-	// Run the appropriate terminal UI
-	if flags.useBubbleTea && bt != nil {
+	// Run the Bubble Tea terminal UI (only option now)
+	if bt != nil {
 		// Run the Bubble Tea terminal UI
 		defer func() {
 			r := recover()
@@ -822,22 +802,8 @@ func setupAndRunAgent(ctx context.Context, flags CLIFlags, modelURL, apiKey, pub
 		if err := bt.Run(ctx); err != nil {
 			return err
 		}
-	} else if s != nil {
-		// Run the classic terminal UI
-		defer func() {
-			r := recover()
-			if err := s.RestoreOldState(); err != nil {
-				fmt.Fprintf(os.Stderr, "couldn't restore old terminal state: %s\n", err)
-			}
-			if r != nil {
-				panic(r)
-			}
-		}()
-		if err := s.Run(ctx); err != nil {
-			return err
-		}
 	} else {
-		panic("Should have exited above.")
+		panic("Bubble Tea UI should have been initialized above.")
 	}
 
 	return nil
@@ -901,6 +867,7 @@ func defaultGitEmail() string {
 // Otherwise, it tries to use the OpenAI service with the specified model.
 // Returns an error if the model name is not recognized or if required configuration is missing.
 func selectLLMService(client *http.Client, modelName string, modelURL, apiKey string) (llm.Service, error) {
+	modelName = routeModel(modelName)
 	if modelName == "" || modelName == "claude" {
 		if apiKey == "" {
 			return nil, fmt.Errorf("missing ANTHROPIC_API_KEY")
@@ -942,61 +909,20 @@ func selectLLMService(client *http.Client, modelName string, modelURL, apiKey st
 	}, nil
 }
 
-// dumpDistFilesystem dumps the embedded /dist/ filesystem to the specified directory
-func dumpDistFilesystem(outputDir string) error {
-	// Build the embedded filesystem
-	distFS, err := webui.Build()
-	if err != nil {
-		return fmt.Errorf("failed to build embedded filesystem: %w", err)
-	}
-
-	// Create the output directory
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create output directory %q: %w", outputDir, err)
-	}
-
-	// Walk through the filesystem and copy all files
-	err = fs.WalkDir(distFS, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		outputPath := filepath.Join(outputDir, path)
-
-		if d.IsDir() {
-			// Create directory
-			if err := os.MkdirAll(outputPath, 0o755); err != nil {
-				return fmt.Errorf("failed to create directory %q: %w", outputPath, err)
-			}
-			return nil
-		}
-
-		// Copy file
-		src, err := distFS.Open(path)
-		if err != nil {
-			return fmt.Errorf("failed to open source file %q: %w", path, err)
-		}
-		defer src.Close()
-
-		dst, err := os.Create(outputPath)
-		if err != nil {
-			return fmt.Errorf("failed to create destination file %q: %w", outputPath, err)
-		}
-		defer dst.Close()
-
-		if _, err := io.Copy(dst, src); err != nil {
-			return fmt.Errorf("failed to copy file %q: %w", path, err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to dump filesystem: %w", err)
-	}
-
-	fmt.Printf("Successfully dumped embedded /dist/ filesystem to %q\n", outputDir)
-	return nil
+var modelAliases = map[string]string{
+	"gpt4": "gpt4.1",
+	"gpt5": "gpt-5-chat",
 }
+
+func routeModel(modelName string) string {
+	if newName, ok := modelAliases[modelName]; ok {
+		return newName
+	}
+	return modelName
+}
+
+// dumpDistFilesystem functionality removed along with web UI support
+// This function has been disabled as part of removing web UI dependencies
 
 // setupSignalIgnoring sets up signal handling to ignore SIGINT and SIGTERM
 // when the -ignoresig flag is used. This prevents the typical Ctrl+C or
@@ -1037,4 +963,17 @@ func doSelfUpdate() error {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 	return update.Do(context.Background(), release, executable)
+}
+
+// displayBanner shows the Kifaru ASCII art banner
+func displayBanner() {
+	banner := ` _     _    ___                   
+| |   (_)  / __)                  
+| |  _ _ _| |__ _____  ____ _   _ 
+| |_/ ) (_   __|____ |/ ___) | | |
+|  _ (| | | |  / ___ | |   | |_| |
+|_| \_)_| |_|  \_____|_|   |____/
+`
+	fmt.Print(banner)
+	fmt.Println()
 }

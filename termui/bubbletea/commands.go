@@ -40,8 +40,9 @@ func (cp *CommandProcessor) ProcessCommand(input string) (bool, tea.Cmd) {
 		return true, cp.handleBudgetCommand()
 	case "usage", "cost":
 		return true, cp.handleUsageCommand()
-	case "browser", "open", "b":
-		return true, cp.handleBrowserCommand()
+	// Browser commands removed - no longer supporting web UI
+	// case "browser", "open", "b":
+	//	return true, cp.handleBrowserCommand()
 	case "stop", "cancel", "abort":
 		return true, cp.handleStopCommand()
 	case "bye", "exit", "q", "quit":
@@ -69,7 +70,7 @@ Special commands:
 - help, ?             : Show this help message
 - budget              : Show original budget
 - usage, cost         : Show current token usage and cost
-- browser, open, b    : Open current conversation in browser
+// Browser commands removed - no longer supporting web UI
 - stop, cancel, abort : Cancel the current operation
 - exit, quit, q       : Exit sketch
 - ! <command>         : Execute a shell command (e.g. !ls -la)`
@@ -116,20 +117,8 @@ func (cp *CommandProcessor) handleUsageCommand() tea.Cmd {
 	}
 }
 
-// handleBrowserCommand opens the browser
-func (cp *CommandProcessor) handleBrowserCommand() tea.Cmd {
-	return func() tea.Msg {
-		if cp.httpURL != "" {
-			content := fmt.Sprintf("🌐 Opening %s in browser", cp.httpURL)
-			if cp.agent != nil {
-				go cp.agent.OpenBrowser(cp.httpURL)
-			}
-			return systemMessageMsg{content: content}
-		} else {
-			return systemMessageMsg{content: "[ERR] No web URL available for this session"}
-		}
-	}
-}
+// handleBrowserCommand removed - no longer supporting web UI
+// This functionality has been disabled as part of removing web UI support
 
 // handleStopCommand cancels the current operation
 func (cp *CommandProcessor) handleStopCommand() tea.Cmd {

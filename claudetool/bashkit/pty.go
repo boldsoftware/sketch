@@ -140,8 +140,9 @@ func CopyOutput(w io.Writer, pty *PTY) {
 // If timeout is 0, it uses read timeouts but no overall timeout.
 // If timeout > 0, it stops after that duration regardless of activity.
 func CopyOutputWithTimeout(w io.Writer, pty *PTY, timeout time.Duration) {
-	const readTimeout = 500 * time.Millisecond // Timeout for individual read operations
-	const bufferSize = 4096                    // Buffer size for reading
+	const readTimeout = 2 * time.Second // Increased timeout for individual read operations
+	const bufferSize = 4096             // Buffer size for reading
+	const maxIdleTime = 10 * time.Second // Max time without output before considering command hung
 	
 	buffer := make([]byte, bufferSize)
 	var deadline time.Time
@@ -149,9 +150,18 @@ func CopyOutputWithTimeout(w io.Writer, pty *PTY, timeout time.Duration) {
 		deadline = time.Now().Add(timeout)
 	}
 	
+	lastOutput := time.Now()
+	var totalBytesRead int64
+	
 	for {
 		// Check overall timeout
 		if timeout > 0 && time.Now().After(deadline) {
+			break
+		}
+		
+		// Check for idle timeout (no output for extended period)
+		if time.Since(lastOutput) > maxIdleTime && totalBytesRead == 0 {
+			// Command might be waiting for input or hung
 			break
 		}
 		
@@ -188,6 +198,8 @@ func CopyOutputWithTimeout(w io.Writer, pty *PTY, timeout time.Duration) {
 		}
 		
 		if n > 0 {
+			totalBytesRead += int64(n)
+			lastOutput = time.Now()
 			if _, writeErr := w.Write(buffer[:n]); writeErr != nil {
 				// If we can't write to the output, stop
 				break

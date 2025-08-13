@@ -19,7 +19,8 @@ import (
 const (
 	DefaultMaxTokens = 8192
 
-	OpenAIURL    = "https://api.openai.com/v1"
+	// Using custom LiteLLM proxy instead of direct OpenAI API
+	OpenAIURL    = "https://lite.bastco.org/v1"
 	FireworksURL = "https://api.fireworks.ai/inference/v1"
 	LlamaCPPURL  = "http://localhost:8080/v1"
 	TogetherURL  = "https://api.together.xyz/v1"
@@ -78,6 +79,13 @@ var (
 	GPT41Nano = Model{
 		UserName:  "gpt4.1-nano",
 		ModelName: "gpt-4.1-nano-2025-04-14",
+		URL:       OpenAIURL,
+		APIKeyEnv: OpenAIAPIKeyEnv,
+	}
+
+	GPT5Chat = Model{
+		UserName:  "gpt-5-chat",
+		ModelName: "gpt-5-chat",
 		URL:       OpenAIURL,
 		APIKeyEnv: OpenAIAPIKeyEnv,
 	}
@@ -227,6 +235,7 @@ var ModelsRegistry = []Model{
 	GPT41,
 	GPT41Mini,
 	GPT41Nano,
+	GPT5Chat,
 	GPT4o,
 	GPT4oMini,
 	O3,
