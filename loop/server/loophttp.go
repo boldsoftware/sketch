@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -138,6 +139,12 @@ type Server struct {
 	terminalSessions map[string]*terminalSession
 	sshAvailable     bool
 	sshError         string
+	
+	// Connection tracking and limits to prevent memory leaks
+	sseConnections    map[string]context.CancelFunc
+	sseConnectionsMux sync.Mutex
+	maxSSEConnections int
+	maxTerminalSessions int
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +220,11 @@ func New(agent loop.CodingAgent, logFile *os.File) (*Server, error) {
 		terminalSessions: make(map[string]*terminalSession),
 		sshAvailable:     false,
 		sshError:         "",
+		
+		// Initialize connection tracking with reasonable limits
+		sseConnections:      make(map[string]context.CancelFunc),
+		maxSSEConnections:   10,  // Limit concurrent SSE connections
+		maxTerminalSessions: 5,   // Limit concurrent terminal sessions
 	}
 
 	s.mux.HandleFunc("/stream", s.handleSSEStream)
@@ -795,8 +807,59 @@ func New(agent loop.CodingAgent, logFile *os.File) (*Server, error) {
 	s.mux.HandleFunc("/debug/", func(w http.ResponseWriter, r *http.Request) {
 		debugMux.ServeHTTP(w, r)
 	})
+	
+	// Add memory monitoring endpoint
+	s.mux.HandleFunc("/debug/memory", s.handleMemoryStats)
 
 	return s, nil
+}
+
+// handleMemoryStats provides memory and connection statistics
+func (s *Server) handleMemoryStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	// Get memory statistics
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	
+	// Get connection counts
+	s.sseConnectionsMux.Lock()
+	sseCount := len(s.sseConnections)
+	s.sseConnectionsMux.Unlock()
+	
+	s.ptyMutex.Lock()
+	terminalCount := len(s.terminalSessions)
+	s.ptyMutex.Unlock()
+	
+	stats := map[string]interface{}{
+		"memory": map[string]interface{}{
+			"alloc_mb":        float64(m.Alloc) / 1024 / 1024,
+			"total_alloc_mb":  float64(m.TotalAlloc) / 1024 / 1024,
+			"sys_mb":          float64(m.Sys) / 1024 / 1024,
+			"heap_alloc_mb":   float64(m.HeapAlloc) / 1024 / 1024,
+			"heap_sys_mb":     float64(m.HeapSys) / 1024 / 1024,
+			"heap_idle_mb":    float64(m.HeapIdle) / 1024 / 1024,
+			"heap_inuse_mb":   float64(m.HeapInuse) / 1024 / 1024,
+			"num_gc":          m.NumGC,
+			"gc_cpu_fraction": m.GCCPUFraction,
+		},
+		"connections": map[string]interface{}{
+			"sse_connections":     sseCount,
+			"max_sse_connections": s.maxSSEConnections,
+			"terminal_sessions":   terminalCount,
+			"max_terminal_sessions": s.maxTerminalSessions,
+		},
+		"goroutines": runtime.NumGoroutine(),
+		"timestamp": time.Now().Unix(),
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		http.Error(w, "Error encoding stats", http.StatusInternalServerError)
+	}
 }
 
 // Utility functions
@@ -851,8 +914,16 @@ func (s *Server) createTerminalSession(sessionID string) (*terminalSession, erro
 
 // handleTerminalEvents handles SSE connections for terminal output
 func (s *Server) handleTerminalEvents(w http.ResponseWriter, r *http.Request, sessionID string) {
-	// Check if the session exists, if not, create it
+	// Check terminal session limits to prevent memory exhaustion
 	s.ptyMutex.Lock()
+	if len(s.terminalSessions) >= s.maxTerminalSessions {
+		s.ptyMutex.Unlock()
+		http.Error(w, "Too many concurrent terminal sessions", http.StatusTooManyRequests)
+		slog.Warn("Terminal session limit reached", "current", len(s.terminalSessions), "max", s.maxTerminalSessions)
+		return
+	}
+	
+	// Check if the session exists, if not, create it
 	session, exists := s.terminalSessions[sessionID]
 
 	if !exists {
@@ -876,8 +947,8 @@ func (s *Server) handleTerminalEvents(w http.ResponseWriter, r *http.Request, se
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	// Create a channel for this client
-	events := make(chan []byte, 4096) // Buffer to prevent blocking
+	// Create a channel for this client with smaller buffer to prevent memory leaks
+	events := make(chan []byte, 100) // Reduced from 4096 to 100 to prevent memory leaks
 
 	// Register this client's channel
 	session.eventsClientsMutex.Lock()
@@ -1115,6 +1186,19 @@ func isValidGitSHA(sha string) bool {
 
 // /stream?from=N endpoint for Server-Sent Events
 func (s *Server) handleSSEStream(w http.ResponseWriter, r *http.Request) {
+	// Check connection limits to prevent memory exhaustion
+	s.sseConnectionsMux.Lock()
+	if len(s.sseConnections) >= s.maxSSEConnections {
+		s.sseConnectionsMux.Unlock()
+		http.Error(w, "Too many concurrent SSE connections", http.StatusTooManyRequests)
+		slog.Warn("SSE connection limit reached", "current", len(s.sseConnections), "max", s.maxSSEConnections)
+		return
+	}
+	
+	// Generate unique connection ID
+	connectionID := fmt.Sprintf("%s-%d", r.RemoteAddr, time.Now().UnixNano())
+	s.sseConnectionsMux.Unlock()
+	
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -1156,18 +1240,32 @@ func (s *Server) handleSSEStream(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	// Create a context for the SSE stream
-	ctx := r.Context()
+	// Create a context for the SSE stream with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)  // 30 minute timeout
+	defer cancel()
+	
+	// Register this connection for tracking
+	s.sseConnectionsMux.Lock()
+	s.sseConnections[connectionID] = cancel
+	s.sseConnectionsMux.Unlock()
+	
+	// Ensure cleanup when connection ends
+	defer func() {
+		s.sseConnectionsMux.Lock()
+		delete(s.sseConnections, connectionID)
+		s.sseConnectionsMux.Unlock()
+		slog.Debug("SSE connection closed", "id", connectionID, "remaining", len(s.sseConnections))
+	}()
 
 	// Setup heartbeat timer
 	heartbeatTicker := time.NewTicker(45 * time.Second)
 	defer heartbeatTicker.Stop()
 
-	// Create a channel for messages
-	messageChan := make(chan *loop.AgentMessage, 1000)
+	// Create channels with smaller buffers to prevent memory leaks
+	messageChan := make(chan *loop.AgentMessage, 10)  // Reduced from 1000 to 10
 
 	// Create a channel for state transitions
-	stateChan := make(chan *loop.StateTransition, 1000)
+	stateChan := make(chan *loop.StateTransition, 10)  // Reduced from 1000 to 10
 
 	// Start a goroutine to read messages without blocking the heartbeat
 	go func() {
@@ -1180,7 +1278,7 @@ func (s *Server) handleSSEStream(w http.ResponseWriter, r *http.Request) {
 			newMessage := iterator.Next()
 			if newMessage == nil {
 				// No message available (likely due to context cancellation)
-				slog.InfoContext(ctx, "No more messages available, ending message stream")
+				slog.InfoContext(ctx, "No more messages available, ending message stream", "connectionID", connectionID)
 				return
 			}
 
@@ -1189,7 +1287,11 @@ func (s *Server) handleSSEStream(w http.ResponseWriter, r *http.Request) {
 				// Message sent to channel
 			case <-ctx.Done():
 				// Context cancelled
+				slog.DebugContext(ctx, "Message goroutine cancelled", "connectionID", connectionID)
 				return
+			default:
+				// Channel is full, drop the message to prevent blocking
+				slog.WarnContext(ctx, "Message channel full, dropping message", "connectionID", connectionID)
 			}
 		}
 	}()
@@ -1205,7 +1307,7 @@ func (s *Server) handleSSEStream(w http.ResponseWriter, r *http.Request) {
 			newTransition := stateIterator.Next()
 			if newTransition == nil {
 				// No transition available (likely due to context cancellation)
-				slog.InfoContext(ctx, "No more state transitions available, ending state stream")
+				slog.InfoContext(ctx, "No more state transitions available, ending state stream", "connectionID", connectionID)
 				return
 			}
 
@@ -1214,7 +1316,11 @@ func (s *Server) handleSSEStream(w http.ResponseWriter, r *http.Request) {
 				// Transition sent to channel
 			case <-ctx.Done():
 				// Context cancelled
+				slog.DebugContext(ctx, "State transition goroutine cancelled", "connectionID", connectionID)
 				return
+			default:
+				// Channel is full, drop the transition to prevent blocking
+				slog.WarnContext(ctx, "State channel full, dropping transition", "connectionID", connectionID)
 			}
 		}
 	}()
