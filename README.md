@@ -58,9 +58,6 @@ Currently, Sketch runs on MacOS and Linux. It uses Docker for containers.
 | Linux    | `apt install docker.io` (or equivalent for your distro)                    |
 | WSL2     | Install Docker Desktop for Windows (docker entirely inside WSL2 is tricky) |
 
-The [sketch.dev](https://sketch.dev) service is used to provide access
-to an LLM service and give you a way to access the web UI from anywhere.
-
 ## 🤝 Community & Feedback
 
 - **Discord**: Join our community at [https://discord.gg/6w9qNRUDzS](https://discord.gg/6w9qNRUDzS)
@@ -182,4 +179,4 @@ Sketch is open source.
 It is right here in this repository!
 Have a look around and mod away.
 
-If you want to run Sketch entirely without the sketch.dev service, you can set the flag `-skaband-addr=""` and then provide an `ANTHROPIC_API_KEY` environment variable. (More LLM services coming soon!)
+To run Sketch, provide an `ANTHROPIC_API_KEY` environment variable.

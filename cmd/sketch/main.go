@@ -98,6 +98,10 @@ func run() error {
 		fmt.Fprintln(os.Stderr, "⚠️  not using a recommended build method")
 	}
 
+	if flagArgs.skabandAddr != "" {
+		fmt.Fprintln(os.Stderr, "⚠️  skaband service is being turned down; -skaband-addr flag is deprecated")
+	}
+
 	// Set up signal handling if -ignoresig flag is set
 	if flagArgs.ignoreSig {
 		setupSignalIgnoring()
@@ -339,8 +343,8 @@ func parseCLIFlags() CLIFlags {
 
 	// User-visible flags
 	userFlags.StringVar(&flags.addr, "addr", "localhost:0", "local HTTP server")
-	userFlags.StringVar(&flags.skabandAddr, "skaband-addr", "https://sketch.dev", "URL of the skaband server; set to empty to disable sketch.dev integration")
-	userFlags.StringVar(&flags.skabandAddr, "ska-band-addr", "https://sketch.dev", "URL of the skaband server; set to empty to disable sketch.dev integration (alias for -skaband-addr)")
+	userFlags.StringVar(&flags.skabandAddr, "skaband-addr", "", "URL of the skaband server (deprecated)")
+	userFlags.StringVar(&flags.skabandAddr, "ska-band-addr", "", "URL of the skaband server (deprecated, alias for -skaband-addr)")
 	userFlags.BoolVar(&flags.unsafe, "unsafe", false, "run without a docker container")
 	userFlags.BoolVar(&flags.openBrowser, "open", true, "open sketch URL in system browser; on by default except if -one-shot is used or a ssh connection is detected")
 	userFlags.Float64Var(&flags.maxDollars, "max-dollars", 10.0, "maximum dollars the agent should spend per turn, 0 to disable limit")
