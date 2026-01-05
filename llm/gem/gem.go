@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	DefaultModel    = "gemini-2.5-pro-preview-03-25"
+	DefaultModel    = "gemini-3-pro-preview"
 	GeminiAPIKeyEnv = "GEMINI_API_KEY"
 )
 
@@ -218,6 +218,7 @@ func (s *Service) buildGeminiRequest(req *llm.Request) (*gemini.Request, error) 
 						Name: c.ToolName,
 						Args: args,
 					},
+					ThoughtSignature: c.Signature,
 				})
 			case llm.ContentTypeToolResult:
 				// Tool result becomes a function response
@@ -346,6 +347,7 @@ func convertGeminiResponseToContent(res *gemini.Response) []llm.Content {
 				Type:      llm.ContentTypeToolUse,
 				ToolName:  part.FunctionCall.Name,
 				ToolInput: json.RawMessage(args),
+				Signature: part.ThoughtSignature,
 			})
 
 			slog.DebugContext(context.Background(), "gemini_tool_call",
@@ -447,6 +449,8 @@ func (s *Service) TokenContextWindow() int {
 
 	// Gemini models generally have large context windows
 	switch model {
+	case "gemini-3-pro-preview":
+		return 1000000 // 1M tokens for Gemini 3 Pro
 	case "gemini-2.5-pro-preview-03-25":
 		return 1000000 // 1M tokens for Gemini 2.5 Pro
 	case "gemini-2.0-flash-exp":

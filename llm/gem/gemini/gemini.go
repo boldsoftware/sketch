@@ -47,6 +47,7 @@ type Part struct {
 	FunctionResponse    *FunctionResponse    `json:"functionResponse,omitempty"`
 	ExecutableCode      *ExecutableCode      `json:"executableCode,omitempty"`
 	CodeExecutionResult *CodeExecutionResult `json:"codeExecutionResult,omitempty"`
+	ThoughtSignature    string               `json:"thoughtSignature,omitempty"`
 	// TODO inlineData
 	// TODO fileData
 }

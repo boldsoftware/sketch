@@ -364,3 +364,65 @@ func TestHeaderCostIntegration(t *testing.T) {
 		t.Fatalf("Expected output tokens to be estimated, got 0")
 	}
 }
+
+func TestThoughtSignatureRoundTrip(t *testing.T) {
+	// 1. Test Convert Response -> Content (Signature Extraction)
+	gemRes := &gemini.Response{
+		Candidates: []gemini.Candidate{
+			{
+				Content: gemini.Content{
+					Parts: []gemini.Part{
+						{
+							FunctionCall: &gemini.FunctionCall{
+								Name: "bash",
+								Args: map[string]any{
+									"command": "echo test",
+								},
+							},
+							ThoughtSignature: "test-signature",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	content := convertGeminiResponseToContent(gemRes)
+
+	if len(content) != 1 {
+		t.Fatalf("Expected 1 content item, got %d", len(content))
+	}
+	if content[0].Signature != "test-signature" {
+		t.Errorf("Expected signature 'test-signature', got '%s'", content[0].Signature)
+	}
+
+	// 2. Test Content -> Request (Signature Injection)
+	req := &llm.Request{
+		Messages: []llm.Message{
+			{
+				Role: llm.MessageRoleAssistant,
+				Content: content, // Use the content we just converted
+			},
+		},
+	}
+
+	service := &Service{
+		Model:  DefaultModel,
+		APIKey: "test-api-key",
+	}
+
+	gemReq, err := service.buildGeminiRequest(req)
+	if err != nil {
+		t.Fatalf("Failed to build Gemini request: %v", err)
+	}
+
+	if len(gemReq.Contents) != 1 {
+		t.Fatalf("Expected 1 content, got %d", len(gemReq.Contents))
+	}
+	if len(gemReq.Contents[0].Parts) != 1 {
+		t.Fatalf("Expected 1 part, got %d", len(gemReq.Contents[0].Parts))
+	}
+	if gemReq.Contents[0].Parts[0].ThoughtSignature != "test-signature" {
+		t.Errorf("Expected thoughtSignature 'test-signature' in request, got '%s'", gemReq.Contents[0].Parts[0].ThoughtSignature)
+	}
+}
