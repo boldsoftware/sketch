@@ -130,7 +130,7 @@ func run() error {
 		fmt.Println("- claude (default, Claude 4.5 Sonnet)")
 		fmt.Println("- opus (Claude 4.5 Opus)")
 		fmt.Println("- sonnet (Claude 4.5 Sonnet)")
-		fmt.Println("- gemini (Google Gemini 2.5 Pro)")
+		fmt.Println("- gemini (Google Gemini 3 Pro)")
 		fmt.Println("- qwen (Qwen3-Coder)")
 		fmt.Println("- glm (Zai GLM4.5)")
 		for _, name := range oai.ListModels() {

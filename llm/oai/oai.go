@@ -122,6 +122,13 @@ var (
 		APIKeyEnv: GeminiAPIKeyEnv,
 	}
 
+	Gemini3Pro = Model{
+		UserName:  "gemini-pro-3",
+		ModelName: "gemini-3-pro-preview",
+		URL:       GeminiURL,
+		APIKeyEnv: GeminiAPIKeyEnv,
+	}
+
 	TogetherDeepseekV3 = Model{
 		UserName:  "together-deepseek-v3",
 		ModelName: "deepseek-ai/DeepSeek-V3",
@@ -311,6 +318,7 @@ var ModelsRegistry = []Model{
 	O4Mini,
 	Gemini25Flash,
 	Gemini25Pro,
+	Gemini3Pro,
 	TogetherDeepseekV3,
 	TogetherDeepseekR1,
 	TogetherLlama4Maverick,
