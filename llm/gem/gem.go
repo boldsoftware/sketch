@@ -218,6 +218,7 @@ func (s *Service) buildGeminiRequest(req *llm.Request) (*gemini.Request, error) 
 						Name: c.ToolName,
 						Args: args,
 					},
+					ThoughtSignature: c.Signature,
 				})
 			case llm.ContentTypeToolResult:
 				// Tool result becomes a function response
@@ -346,6 +347,7 @@ func convertGeminiResponseToContent(res *gemini.Response) []llm.Content {
 				Type:      llm.ContentTypeToolUse,
 				ToolName:  part.FunctionCall.Name,
 				ToolInput: json.RawMessage(args),
+				Signature: part.ThoughtSignature,
 			})
 
 			slog.DebugContext(context.Background(), "gemini_tool_call",
