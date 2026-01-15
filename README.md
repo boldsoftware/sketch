@@ -1,3 +1,13 @@
+# Sketch has evolved into Shelley
+
+See https://blog.exe.dev/shelley for details.
+
+**Sketch is no longer maintained.**
+
+You can **[try Shelley at exe.dev](https://exe.dev)** or **[check out the Shelley GitHub repo](https://github.com/boldsoftware/shelley)**.
+
+---
+
 <div align="center">
 
 <img src="https://storage.googleapis.com/sketch-assets/sketch-logo.png" alt="Sketch Logo" width="300"/>
